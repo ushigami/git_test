@@ -1,0 +1,1 @@
+This is ushigami's first git project!
