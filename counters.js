@@ -1,1 +1,60 @@
-const COUNTERS=[["Raiden","Marksman / Farseer / Phoenix + layered chaff","完成前にAAを準備。超硬い単体へ寄せてRaidenの効率を落とす。"],["Steel Ball","Scorpion / Sledge+Marks / Phoenix / chaff","Ballより先にsupport clearを崩す。chaffを残してbeamを吸う。"],["Rhino","Phoenix / Sabertooth / Melter / Fang stall","空からDPS。Whirlwind相手はFangを長く並べて足止め。"],["Tarantula","Marksman / Phoenix / Void Eye / Sabertooth","single-targetを早めに。chaffでSpiderの射線を吸わせない。"],["Wraith","AA Marks / Farseer / Melter / Mustang","Range+8gun完成前にAA。WaspでAAを吸われる前提で層を作る。"],["Melting Point","Steel Ball / chaff / Marks / Phoenix / Storm","beamを小型へ吸わせるか、長射程から処理。"],["Vulcan","Phoenix / Storm / Fortress / Melter / Sandworm","小型を正面供給し続けない。Vulcanが苦手な高HP/長射程軸へ。"],["Scorpion","Phoenix / Marks / Storm / Hacker / Overlord","空・長射程。Siegeならmin-rangeへ高速で入る。"],["Stormcaller","高速Aggro / Siege / Beacon / Interceptor","迎撃だけでなく距離を潰す・初弾を外す。"],["Phantom Ray","AA Wasp / Marks / Phoenix / Farseer / Raiden","Oil+fireをセットで警戒。Missile InterceptorはBurstへのpivotに注意。"]];
+const BOARD_COUNTERS=[
+["中型密集","Raiden / Scorpion","Sledge・Steel Ball・Fire Badger・Phantom Ray・Vortexなど中型が何packも並ぶ盤面。Raidenは空から複数同時、Scorpionは地上の密集へ高火力。","medium 中型 密集 sledge steel ball badger phantom ray vortex"],
+["硬い単体 / 巨体","Melting Point / Phoenix / Steel Ball / Void Eye(Charged)","単体HPを削る係を明確に作る。chaffが前にいるなら先にclearしないと高火力が吸われる。","giant tank high hp 巨体 大型 硬い fortress vulcan rhino mountain abyss"],
+["Crawler大量","Arclight / Fire Badger / Wraith / Vulcan / Typhoon","安いclearならArclight/Badger。Aggroや大量CrawlerへはWraith、後半の広域処理はVulcan/Typhoon。","crawler chaff swarm 小型 大量"],
+["Fang大量 / Shield Fang","Mustang / Stormcaller / Vulcan / Typhoon / Tarantula","Shield FangはArclightだけでは止まりやすい。多段/範囲/砲撃を用意。","fang shield chaff swarm 小型 大量"],
+["Air多め","Marksman / Farseer / Mustang / Phoenix / Melting Point","相手のAirが単体大型か群れかで回答を変える。Wasp群れ→Mustang/Fang、Raiden/Wraith等→Marks/Phoenix/Melter。","air 空 航空 raiden wraith phoenix wasp phantom ray overlord"],
+["長射程後衛","Stormcaller / Wasp・Rhino等のAggro / Sandworm","Marksman等の後衛を正面Range勝負だけで追わず、砲撃か高速接近で射撃時間を奪う。","range sniper marksman farseer backline 後衛 長射程"],
+["Shield / Barrier多め","Stormcaller / Scorpion / Melting Point","まずshieldを剥がす役を置く。Hackerを使う時は特にBarrierが天敵。","shield barrier fortress hacker fang シールド"],
+["Ball + Hound Aggro","Scorpion + chaff / Phoenix / Hacker","Hound/Crawlerのclear層を処理しつつBallを本体へ接続させない。Scorpionが最も素直。","steel ball hound aggro ボール ハウンド"],
+["Ball + Wraith Aggro","Marks/Farseer/PhoenixでWraith + Scorpion/HackerでBall","Wraithのchaff clearとBallの単体DPSを別々に止める。AAだけ、Ball対策だけでは片側が通る。","steel ball wraith aggro"],
+["Tarantula + Rhino系","Phoenix / Melting Point / Hacker / Sabertooth","高HP地上が前へ来る盤面。Phoenixは両方へ素直、Melter/Hackerも有効。chaff clear役は別途必要。","tarantula rhino spider heavy"],
+["Stormcaller mass","高速Aggro / Phoenix / Overlord / Rhino / War Factory Intercept","Heavy MissileがあるのでInterceptor一本は危険。距離を潰す、空から撃つ、砲撃を外すのを併用。","stormcaller storm artillery missile mass"],
+["Vulcan + Marksman","Aggro / Stormcaller / Sandworm / giant axis","Vulcanが小型、Marksが大型を分業。普通のBalanced boardで付き合わず、射程・速度・巨体の別軸へ。","vulcan marksman vmm standard"],
+["Hacker増殖","Crawler/Fang / Barrier / Stormcaller / Air","早期Hackerはchaffで吸わせる。中盤以降はBarrierが強い。shield breakが揃ったらAir/長射程へ。","hacker control hack"],
+["Melter中心","Steel Ball / Crawler / Marksman / Phoenix / Stormcaller / Hacker","Melterは高価値targetへbeamを繋ぎたい。chaffで吸うか、Ballでbeam duel、後衛から削る。","melter melting point beam giant"],
+["Marksman大量","Crawler / Fang / Wasp / Stormcaller / Rhino","高単発を小型で浪費させるか、Rhino等で距離を詰める。Marksを正面から大型だけで受けない。","marksman sniper mass"],
+["Rhino rush / Beacon","Steel Ball / Phoenix / Melter / Hacker + Fang stall","進路を塞ぐ配置が重要。Whirlwind Rhinoでも長いFang列は時間を買える。Final Blitzなら密集しすぎない。","rhino rush beacon aggro"],
+["Vortex frontline","Sabertooth / Phoenix / Marksman + chaff","VortexはGround Onlyで単体。単体高DPSか空から削る。Grid/Field Maintenance型は早めに高火力を通す。","vortex electric frontline medium"],
+["War Factory","Melting Point / Scorpion","高HP巨体なのでMelterが基本。地上で射線が作れるならScorpionも強い。生産物/chaffに主砲を吸わせない。","war factory factory giant"],
+["Abyss / Titan","Melting Point + chaff","巨体なのでramp beamが基本回答。Abyssの横薙ぎbeamに高価値unitを横一列で並べすぎない。","abyss titan 巨体"],
+["Mountain","Melting Point / Phoenix・Air / high single-target","超高HPだがGround Only。AA Techが無ければAirで圧をかけやすい。Extended Range型には射程戦を避ける。","mountain titan 巨体" ]
+];
+
+const COUNTERS=[
+["Abyss","Melting Point","Titan級HPへramp beam。横薙ぎbeamに高価値unitを横並びしすぎない。","abyss titan"],
+["Arclight","Marksman / Stormcaller / Rhino / Phoenix / Wraith","Crawler clear役。単体火力・砲撃・高速接近で処理。","arclight arc"],
+["Crawler","Arclight / Fire Badger / Wraith / Vulcan / Sledge / Typhoon","最重要chaff。全部を一度に焼くより、相手の時間差配置も見る。","crawler chaff"],
+["Fang","Mustang / Stormcaller / Vulcan / Typhoon / Tarantula / Crawler","Shieldを取られると軽いclearだけでは止まる。","fang chaff shield"],
+["Farseer","Fortress / Rhino / War Factory","R3–5の万能中距離。硬い前進unitで射撃時間を潰す。","farseer"],
+["Fire Badger","Sabertooth / Fortress / Hacker / Marksman / Phoenix / Rhino / Scorpion","Crawler clear特化。高単発や硬い前衛を当てる。","fire badger badger"],
+["Fortress","Melting Point / Steel Ball / Stormcaller / Overlord / Crawler","Melterが基本。Barrier/Fang summon等のTechを見てshield/chaff対策も追加。","fortress giant"],
+["Hacker","Crawler / Fang / Fortress Barrier / Stormcaller / Phoenix / Wraith","早期はchaff、中盤はBarrier。Hackerが小型を掴んでいる間に本体を殴る。","hacker"],
+["Hound","Fire Badger / Rhino / Scorpion / Raiden / Typhoon / Vulcan / Wraith / Sandworm","chaff clear＋複数body。Houndだけでなく後ろのcarryへ何を通しているかを見る。","hound"],
+["Marksman","Crawler / Fang / Wasp / Stormcaller / Rhino / Fortress","弾を安いbodyへ吸わせるか、距離を詰める。","marksman sniper"],
+["Melting Point","Steel Ball / Crawler / Marksman / Phoenix / Stormcaller / Hacker","beamを高価値targetへ繋がせない。Ballは特に素直な回答。","melter melting point"],
+["Mustang","Arclight / Sledge / Stormcaller / Vulcan / Fortress / Rhino / Badger / Typhoon / Tarantula","低ATK多段なのでArmorにも弱い。AA役を兼ねている時はAir switch前にMustang数を見る。","mustang"],
+["Overlord","Marksman / Melting Point / Phoenix / Mustang / Fortress","高価な後衛Air。長射程AAを通す。","overlord air giant"],
+["Phantom Ray","Farseer / Marksman / Melting Point / Overlord / Phoenix / Raiden","Armor Techで速射unitを腐らせやすい。低数ならMarks/Phoenix、massならOverlord/Melter/Raiden。","phantom ray air"],
+["Phoenix","Wasp / Marksman / Mustang / Fang / Fortress","高単発Air。AA/chaffを同時に用意して価値targetへ撃たせない。","phoenix air"],
+["Raiden","Farseer / Marksman / Melting Point / Overlord / Phoenix + layered chaff","序盤はchaffにも弱い。Mass化を見たらAAを後回しにしない。","raiden air giant medium counter"],
+["Rhino","Steel Ball / Phoenix / Melting Point / Hacker / Sabertooth / Fortress + Fang stall","burst single-targetが基本。Beacon進路を塞ぐ配置もcounterの一部。","rhino aggro"],
+["Sabertooth","Fortress / Hacker / Melting Point / Overlord / Phoenix / Rhino","単体高DPS。chaffで弾を吸わせつつ高火力を当てる。","sabertooth saber"],
+["Sandworm","War Factory / Phoenix / Overlord / Steel Ball / Melting Point / Rhino","潜行でtargetingを崩す。再浮上位置へ単体DPSを残す。","sandworm worm"],
+["Scorpion","Marksman / Phoenix / Stormcaller / Overlord","中型密集を一撃で消す。空/長射程へ逃がす。Siegeなら近距離へ入る。","scorpion"],
+["Sledgehammer","Hacker / Fortress / Phoenix / Overlord / Scorpion / Marksman / Rhino / War Factory","中型5body。壁として使われているなら後ろのDPSまで含めてcounterする。","sledgehammer sledge"],
+["Steel Ball","Scorpion / Phoenix / Hacker / Overlord / Stormcaller / Crawler","Scorpionが代表回答。Crawlerでbeamを吸いながらBallのsupport clearも壊す。","steel ball ball"],
+["Stormcaller","Phoenix / Overlord / Rhino / Sabertooth / War Factory / Aggro / Beacon","Heavy MissileでInterceptorを突破可能。迎撃一本より距離を詰める回答を。","stormcaller storm artillery"],
+["Tarantula","Phoenix / Marksman / Melting Point / Hacker / Scorpion / Sabertooth / Steel Ball / Fortress","早期Phoenixが分かりやすい。Spider Mine型ならclearとtargeting乱れも考える。","tarantula spider"],
+["Typhoon","Fortress / Marksman / Melting Point / Overlord / Phoenix / Rhino / Sabertooth / Scorpion / Steel Ball","重めの万能unit。高単発/巨体で正面性能を上回る。","typhoon"],
+["Void Eye","Marksman / Phoenix / Raiden / Wasp + chaff","高DPS burstだがchaff処理が苦手。Ground OnlyのままならAirも有効。Aerial Modeを確認。","void eye voideye"],
+["Vortex","Sabertooth / Phoenix / Marksman + chaff","Ground Only・単体。Grid IntegrationやField Maintenance型は育つ前に単体高DPSを当てる。","vortex"],
+["Vulcan","Fortress / Melting Point / Overlord / Phoenix / Rhino / Stormcaller","chaff clear巨体。小型を正面投入し続けず、高HP/長射程/空へ。","vulcan giant"],
+["War Factory","Melting Point / Scorpion","巨体へのMelterが基本。Interceptor/生産Techを見て役割を判断。","war factory factory"],
+["Wasp","Mustang / Fortress / Fang / Wraith / Typhoon / Tarantula","Air chaff/harass。AAを1点に置きすぎずJump Drive位置変更も警戒。","wasp air"],
+["Wraith","Marksman / Phoenix / Melting Point / Farseer / Overlord / Void Eye","長射程single-target AAが基本。Land CruiserでAA Specが無効化される組み合わせに注意。","wraith air"],
+["Mountain","Melting Point / Phoenix・Air / high single-target","超高HP・Ground Only。AA Techの有無を確認してAirを使う。","mountain titan"]
+];
+
+const COUNTER_SOURCE="https://mechamonarch.com/guide/mechabellum-counters/";
+const COUNTER_SOURCE_NEW="https://mechabellum.wiki.gg/";
