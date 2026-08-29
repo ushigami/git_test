@@ -7,11 +7,27 @@
     companion: "https://mechabellum-companion.netlify.app/"
   };
 
+  // Baseline recruitment economy. Specialist and reinforcement discounts are
+  // intentionally excluded; the calculator compares the normal unlock path.
+  const economy = {
+    "Abyss": [800, 350], "Arclight": [100, 0], "Crawler": [100, 0],
+    "Death Knell": [800, 350], "Fang": [100, 0], "Farseer": [300, 50],
+    "Fire Badger": [200, 0], "Fortress": [400, 200], "Hacker": [200, 100],
+    "Hound": [100, 0], "Marksman": [100, 0], "Melting Point": [400, 200],
+    "Mountain": [800, 350], "Mustang": [200, 0], "Overlord": [500, 200],
+    "Phantom Ray": [200, 50], "Phoenix": [200, 50], "Raiden": [400, 200],
+    "Rhino": [200, 50], "Sabertooth": [200, 0], "Sandworm": [400, 200],
+    "Scorpion": [300, 50], "Sledgehammer": [200, 0], "Steel Ball": [200, 0],
+    "Stormcaller": [200, 50], "Tarantula": [200, 0], "Typhoon": [300, 100],
+    "Void Eye": [100, 0], "Vortex": [100, 0], "Vulcan": [400, 200],
+    "War Factory": [800, 350], "Wasp": [200, 50], "Wraith": [300, 50]
+  };
+
   const needs = (screening, chaffClear, tanking) => ({ screening, chaffClear, tanking });
   const support = (chaff, tank, clear, dps) => ({ chaff, tank, clear, dps });
   const synergy = (...pairs) => pairs.map(([unit, reason]) => ({ unit, reason }));
   const unit = (id, name, target, roles, supportNeeds, preferredSupport, synergies, depth, notes, risks, goodAgainst, badAgainst) => ({
-    id, name, target, roles, supportNeeds, preferredSupport, synergies,
+    id, name, target, roles, cost: economy[name][0], unlockCost: economy[name][1], supportNeeds, preferredSupport, synergies,
     placement: { depth, notes }, risks, goodAgainst, badAgainst,
     techExceptions: [], sources: ["official", "wiki", "companion"]
   });

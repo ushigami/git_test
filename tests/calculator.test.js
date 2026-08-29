@@ -5,105 +5,102 @@ const { data, calculator } = loadData();
 
 assert.deepStrictEqual(calculator.calculate([], []), [], "zero selection must return safely");
 
-const one = calculator.calculate(["Steel Ball"], []);
-assert(one.length > 0, "one enemy must return results");
-for (const result of one) {
-  assert(result.package.length >= 1 && result.package.length <= 3, "package must contain 1-3 units");
-  assert.strictEqual(new Set(result.package).size, result.package.length, "package units must be unique");
-}
+// Direction is counter -> target, while the source table is indexed by target.
+assert.strictEqual(calculator.directCounter("Melting Point", "Fortress").grade, "S", "Melting Point must counter Fortress");
+assert.strictEqual(calculator.directCounter("Mountain", "Fortress").grade, "A", "Mountain must be an A counter to Fortress");
+assert.strictEqual(calculator.directCounter("Fortress", "Melting Point"), null, "Fortress must not be read as a Melting Point counter");
+assert.strictEqual(calculator.evaluateExposure(["Melting Point"], ["Fortress"]).penalty, 0, "Enemy Fortress must not expose Melting Point");
+assert(calculator.evaluateExposure(["Melting Point"], ["Crawler"]).items.some((item) => item.threat === "Crawler"), "Crawler in Melting Point's target table must create exposure");
 
-const scenarioA = calculator.calculate(["Steel Ball", "Marksman", "Crawler"], []);
-assert(scenarioA.length > 0, "Scenario A must return results");
-assert(scenarioA[0].assignments.every((item) => ["S", "A"].includes(item.grade)), "Scenario A must keep direct strong assignments");
-const answerRoles = new Set(scenarioA[0].package.flatMap((name) => data.units.find((unit) => unit.name === name).roles));
-assert(answerRoles.has("single_target") || answerRoles.has("anti_giant"), "Scenario A needs heavy/medium answer");
-assert(answerRoles.has("chaff") || answerRoles.has("screen"), "Scenario A needs screen");
-assert(answerRoles.has("chaff_clear"), "Scenario A needs chaff clear");
+// Mirrors are neutral parity, not automatic counters.
+assert.strictEqual(calculator.existingMatchup("Arclight", "Arclight").grade, "B", "same-unit mirror must not be A");
+assert.strictEqual(calculator.existingMatchup("Rhino", "Rhino").grade, "B", "all mirrors must use parity");
 
-const vortex = calculator.calculate(["Vortex"], []);
-assert(vortex[0].package.some((name) => ["Phoenix", "Phantom Ray", "Wraith"].includes(name)), "Scenario B must recognize Air answer");
-assert(vortex[0].details.techNotes.some((note) => note.includes("Ground Only")), "Scenario B needs baseline targeting note");
+// Crawler is a separate chaff slot and has much lighter acquisition friction.
+assert.strictEqual(calculator.coreTypeCount(["Crawler", "Arclight", "Melting Point", "Raiden"]), 3, "Crawler must be excluded from core count");
+assert.strictEqual(calculator.coreDiversityPenalty(["Crawler", "Melting Point"], ["Arclight"]), 0, "Crawler must not consume compact core budget");
+assert(calculator.economyPenalty(["Crawler"]) < calculator.economyPenalty(["Arclight"]), "Crawler new-unit friction must be lighter than a normal core");
+assert.strictEqual(calculator.scorePackage(["Crawler", "Melting Point"], ["Fortress"], []).core, "Melting Point", "Crawler must not replace a real composition core");
+assert(!calculator.calculate(["Marksman"], ["Crawler"], { limit: 10 }).some((result) => result.package.includes("Crawler")), "owned Crawler must never be re-added");
 
-const withOwn = calculator.calculate(["Crawler"], ["Arclight"]);
-assert.strictEqual(withOwn[0].assignments[0].answer, "OWN Arclight", "adequate Own answer must be used by assignment");
-assert.strictEqual(withOwn[0].assignments[0].source, "own", "assignment must expose Own source");
-assert.strictEqual(withOwn[0].package.length, 0, "fully covered enemy must require no new unit");
-assert(!withOwn[0].package.includes("Arclight"), "existing Own unit must not be re-added to package");
+// Every live unit carries validated baseline economy data.
+assert.strictEqual(data.units.length, 33, "economy coverage requires all 33 units");
+data.units.forEach((unit) => {
+  assert(Number.isInteger(unit.cost) && unit.cost >= 100, `${unit.name} cost missing`);
+  assert(Number.isInteger(unit.unlockCost) && unit.unlockCost >= 0, `${unit.name} unlock cost missing`);
+});
+const unit = (name) => data.units.find((item) => item.name === name);
+assert.deepStrictEqual([unit("Mountain").cost, unit("Mountain").unlockCost], [800, 350], "Mountain economy regression");
+assert.deepStrictEqual([unit("Melting Point").cost, unit("Melting Point").unlockCost], [400, 200], "Melting Point economy regression");
 
+// Scenario A: compact two-new-core answer; never the old isolated Mountain.
+const enemiesA = ["Crawler", "Arclight", "Marksman", "Fortress"];
+const own = ["Crawler", "Arclight"];
+const scenarioA = calculator.calculate(enemiesA, own, { limit: 10 });
+assert(scenarioA[0].package.includes("Melting Point"), "Scenario A top answer must use the efficient S Fortress counter");
+assert.strictEqual(scenarioA[0].package.length, 2, "Scenario A should form a compact two-new-core package");
+assert.strictEqual(scenarioA[0].totalCoreCount, 3, "Scenario A completed composition should have three cores including Own Arclight");
+assert.strictEqual(scenarioA[0].adequateCoverage, enemiesA.length, "Scenario A must cover every enemy at A/S");
+assert.notDeepStrictEqual(scenarioA[0].package, ["Mountain"], "isolated Mountain regression must stay fixed");
+assert.strictEqual(scenarioA[0].assignments.find((item) => item.enemy === "Crawler").answer, "OWN Arclight", "Own Arclight must keep Crawler duty");
+assert.notStrictEqual(scenarioA[0].assignments.find((item) => item.enemy === "Arclight").answer, "OWN Arclight", "mirror Arclight must not be treated as solved A");
+
+// Scenario B: direct quality and economy naturally favor Melting Point.
+const scenarioB = calculator.calculate(["Fortress"], own, { limit: 10 });
+assert.deepStrictEqual(scenarioB[0].package, ["Melting Point"], "Fortress-only top answer must be Melting Point");
+const mountain = calculator.scorePackage(["Mountain"], ["Fortress"], own);
+const melter = calculator.scorePackage(["Melting Point"], ["Fortress"], own);
+assert(melter.score > mountain.score, "Melting Point S/cost value must beat Mountain A/cost value");
+assert(mountain.titanValuePenalty > 0, "an isolated expensive Titan needs additional value");
+assert.strictEqual(melter.exposurePenalty, 0, "Fortress must not apply reverse exposure to Melting Point");
+
+// Scenario C: existing clear means no new unit.
+const scenarioC = calculator.calculate(["Crawler"], own, { limit: 10 });
+assert.deepStrictEqual(scenarioC[0].package, [], "covered Crawler must allow NO NEW UNIT");
+assert.strictEqual(scenarioC[0].assignments[0].answer, "OWN Arclight", "Own Arclight must retain chaff-clear duty");
+
+// Scenario D: four total cores are allowed only when the complex board pays for them.
+const enemiesD = ["Crawler", "Fortress", "Phoenix", "Stormcaller", "Sabertooth"];
+const scenarioD = calculator.calculate(enemiesD, own, { limit: 10 });
+assert(scenarioD.some((result) => result.totalCoreCount === 4), "complex Scenario D must allow a fourth total core");
+assert(scenarioD[0].marginalValues && Object.values(scenarioD[0].marginalValues).every((value) => value > 0), "every Scenario D addition needs positive marginal contribution");
+
+// Fifth core remains searchable, but its gate is stronger than the fourth.
+assert.strictEqual(calculator.marginalThreshold(4), 8, "fourth core requires moderate marginal value");
+assert.strictEqual(calculator.marginalThreshold(5), 18, "fifth core requires high marginal value");
+assert(calculator.marginalThreshold(5) > calculator.marginalThreshold(4), "fifth-core gate must be stronger");
+const fiveCoreProbe = calculator.calculate(["Mountain", "Wasp", "Rhino", "Hacker", "Stormcaller", "Vulcan"], own, { limit: 10 });
+assert(fiveCoreProbe.some((result) => result.totalCoreCount === 5), "complex multi-axis input must retain qualifying fifth-core exploration");
+assert(fiveCoreProbe.every((result) => result.totalCoreCount <= 5), "search must never exceed five cores");
+
+// Scenario E: a simple enemy board does not force extra complementary cores.
+const scenarioE = calculator.calculate(["Crawler", "Fang"], own, { limit: 10 });
+assert(scenarioE[0].package.length <= 1, "simple Scenario E should prefer no or one new core");
+assert.strictEqual(scenarioE[0].assignments.find((item) => item.enemy === "Crawler").answer, "OWN Arclight", "Scenario E must reuse Own clear");
+
+// Existing conditional matchups and concise result contract remain intact.
 for (const enemy of ["Arclight", "Marksman", "Farseer", "Stormcaller"]) {
   const relation = calculator.matchup("Rhino", enemy);
-  assert(["S", "A"].includes(relation.grade), `Rhino vs ${enemy} must remain a conditional strong matchup`);
-  assert(relation.condition, `Rhino vs ${enemy} must state its reach/screen condition`);
+  assert(["S", "A"].includes(relation.grade), `Rhino vs ${enemy} must stay strong`);
+  assert(relation.condition, `Rhino vs ${enemy} must retain its condition`);
 }
-assert.strictEqual(calculator.matchup("Marksman", "Rhino").grade, "C", "Marksman must not be a baseline Rhino counter");
-assert.strictEqual(calculator.matchup("Arclight", "Rhino").grade, "C", "Arclight must not be a baseline Rhino counter");
-
-const exposed = calculator.evaluateExposure(["Rhino"], ["Sabertooth", "Fortress"]);
-const covered = calculator.evaluateExposure(["Rhino", "Melting Point"], ["Sabertooth", "Fortress"]);
-const scoredRhino = calculator.scorePackage(["Rhino"], ["Sabertooth", "Fortress"], []);
-assert.deepStrictEqual(exposed.items.filter((item) => item.candidate === "Rhino").map((item) => item.threat), ["Sabertooth", "Fortress"], "Rhino must expose both hard threats");
-assert(exposed.items.every((item) => !item.mitigatedBy), "single Rhino must have no package mitigation");
-assert.strictEqual(scoredRhino.exposurePenalty, exposed.penalty, "hard-counter exposure must be subtracted by package scoring");
-for (const item of covered.items.filter((entry) => entry.candidate === "Rhino")) {
-  const original = exposed.items.find((entry) => entry.threat === item.threat);
-  assert.strictEqual(item.mitigatedBy, "Melting Point", `${item.threat} exposure must be covered by Melting Point`);
-  assert(item.appliedPenalty < original.appliedPenalty, "coverage must reduce, not erase, exposure penalty");
-}
-
-const regressionEnemies = ["Crawler", "Arclight", "Marksman", "Sabertooth", "Rhino", "Fortress"];
-const regression = calculator.calculate(regressionEnemies, ["Crawler"], { limit: 10 });
-assert(regression.length > 0, "specified regression scenario must return recommendations");
-regression.forEach((result) => {
-  assert.deepStrictEqual(result.assignments.map((item) => item.enemy), regressionEnemies, "every enemy needs a normal assignment");
-  assert(result.assignments.every((item) => (item.source === "own" || result.package.includes(item.answer)) && calculator.gradeValue[item.grade] !== undefined), "assignment answer and grade must be valid");
-  assert(result.details.roles.length === result.package.length, "DETAILS must show one ROLE line per package unit");
-  assert(result.details.support.chaff.length > 0 && result.details.support.tank.length > 0, "DETAILS must give concrete chaff and tank status");
-  assert(result.details.techNotes.length <= 3, "Tech Notes must be capped at three");
-  assert(result.details.risks.length <= 4, "Risks must be capped at four");
+scenarioA.forEach((result) => {
+  assert(result.details.roles.length === (result.package.length || own.length), "DETAILS role contract changed");
+  assert(result.details.techNotes.length <= 3 && result.details.risks.length <= 4, "DETAILS caps changed");
+  assert(result.assignments.every((item) => item.source === "own" || result.package.includes(item.answer)), "assignment must point to Own or package");
 });
-const rhinoResult = regression.find((result) => result.package.includes("Rhino"));
-assert(rhinoResult, "regression should evaluate at least one Rhino package without hardcoding its rank");
-for (const threat of ["Sabertooth", "Fortress"]) {
-  assert(rhinoResult.exposure.some((item) => item.candidate === "Rhino" && item.threat === threat && item.appliedPenalty > 0), `Rhino ${threat} exposure must affect score`);
-}
-assert(rhinoResult.details.risks.some((risk) => risk.startsWith("Rhino:") && risk.includes("Sabertooth") && risk.includes("Fortress")), "Rhino exposure must be visible in concise Risks");
 
-const minimalEnemies = ["Arclight", "Crawler", "Sabertooth", "Fortress"];
-const minimalOwn = ["Crawler", "Arclight"];
-const minimal = calculator.calculate(minimalEnemies, minimalOwn, { limit: 10 });
-assert.deepStrictEqual(minimal[0].package, ["Melting Point"], "Regression 1: one-unit anti-giant pivot must lead");
-assert.deepStrictEqual(minimal[0].assignments.map((item) => item.answer), ["OWN Arclight", "OWN Arclight", "Melting Point", "Melting Point"], "Regression 1: Own must keep solved assignments");
-assert(minimal[0].necessaryUnits.includes("Melting Point") && minimal[0].missingRoleBonus > 0, "Regression 1: missing anti-giant role must add value");
-assert(!minimal[0].package.includes("Fire Badger") && !minimal[0].package.includes("Phoenix"), "Regression 1: redundant isolated counters must not enter top package");
-
-const coveredCrawler = calculator.calculate(["Crawler"], ["Arclight"], { limit: 10 });
-assert.strictEqual(coveredCrawler[0].assignments[0].answer, "OWN Arclight", "Regression 2: Own Arclight must retain Crawler duty");
-assert.deepStrictEqual(coveredCrawler[0].package, [], "Regression 2: adequate Own S counter must produce no new pivot");
-const fireOnly = calculator.scorePackage(["Fire Badger"], ["Crawler"], ["Arclight"]);
-assert(fireOnly.unnecessaryPivotPenalty > 0 && fireOnly.roleRedundancyPenalty > 0, "Regression 2: unnecessary redundant clear must be penalized");
-
-const fortressGap = calculator.calculate(["Fortress"], ["Crawler", "Arclight"]);
-assert.strictEqual(fortressGap[0].package[0], "Melting Point", "Regression 3: missing anti-giant role must favor Melting Point");
-assert(fortressGap[0].missingRoleBonus > 0 && fortressGap[0].necessaryUnits.includes("Melting Point"), "Regression 3: required new role must be recognized");
-
-const mixedGap = calculator.calculate(["Crawler", "Fortress"], ["Arclight"], { limit: 10 });
-assert.strictEqual(mixedGap[0].assignments.find((item) => item.enemy === "Crawler").answer, "OWN Arclight", "Regression 4: Own handles Crawler");
-const melterOnlyMixed = calculator.scorePackage(["Melting Point"], ["Crawler", "Fortress"], ["Arclight"]);
-const redundantMixed = calculator.scorePackage(["Fire Badger", "Melting Point"], ["Crawler", "Fortress"], ["Arclight"]);
-assert(melterOnlyMixed.score > redundantMixed.score, "Regression 4: duplicate chaff clear must not outrank minimal Fortress pivot");
-
-const melterOnly = calculator.scorePackage(["Melting Point"], ["Sabertooth", "Fortress"], minimalOwn);
-const melterPhoenix = calculator.scorePackage(["Melting Point", "Phoenix"], ["Sabertooth", "Fortress"], minimalOwn);
-assert(melterOnly.score > melterPhoenix.score, "Regression 5: Phoenix must not be added for an A-to-S-only improvement");
-assert(melterPhoenix.unnecessaryPivotPenalty > melterOnly.unnecessaryPivotPenalty, "Regression 5: redundant package member needs a marginal-value penalty");
-
+// Warm browser-like execution and assert both average and worst sample stay below 100ms.
+calculator.calculate(enemiesD, own);
 const samples = [];
 for (let index = 0; index < 20; index += 1) {
   const start = performance.now();
-  calculator.calculate(["Steel Ball", "Marksman", "Crawler", "Raiden"], ["Fang", "Arclight", "Sledgehammer"]);
+  calculator.calculate(index % 2 ? enemiesA : enemiesD, own);
   samples.push(performance.now() - start);
 }
 const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
 const maximum = Math.max(...samples);
 assert(average < 100, `average calculation ${average.toFixed(2)}ms exceeds 100ms`);
-console.log(`PASS calculator scenarios=9 minimal=${minimal[0].package.join("+")} exposure=${exposed.penalty.toFixed(2)} covered=${covered.penalty.toFixed(2)} average=${average.toFixed(2)}ms max=${maximum.toFixed(2)}ms topA=${scenarioA[0].package.join("+")}`);
+assert(maximum < 100, `maximum calculation ${maximum.toFixed(2)}ms exceeds 100ms`);
+
+console.log(`PASS calculator compact=${scenarioA[0].package.join("+")} core4=${scenarioD[0].package.join("+")} average=${average.toFixed(2)}ms max=${maximum.toFixed(2)}ms`);

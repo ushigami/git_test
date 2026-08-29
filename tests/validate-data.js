@@ -11,11 +11,13 @@ assert.strictEqual(new Set(ids).size, 33, "unit IDs must be unique");
 assert.deepStrictEqual(names, names.slice().sort((a, b) => a.localeCompare(b)), "units must be A-Z");
 const known = new Set(names);
 const levels = new Set(["low", "medium", "high"]);
-const required = ["roles", "target", "supportNeeds", "preferredSupport", "synergies", "placement", "risks", "techExceptions", "goodAgainst", "badAgainst", "sources"];
+const required = ["roles", "target", "cost", "unlockCost", "supportNeeds", "preferredSupport", "synergies", "placement", "risks", "techExceptions", "goodAgainst", "badAgainst", "sources"];
 
 for (const unit of data.units) {
   required.forEach((field) => assert(unit[field] != null, `${unit.name}.${field} missing`));
   assert(["ground", "air_ground"].includes(unit.target), `${unit.name}.target invalid`);
+  assert(Number.isInteger(unit.cost) && unit.cost >= 100, `${unit.name}.cost invalid`);
+  assert(Number.isInteger(unit.unlockCost) && unit.unlockCost >= 0, `${unit.name}.unlockCost invalid`);
   assert(unit.roles.length > 0, `${unit.name}.roles empty`);
   Object.values(unit.supportNeeds).forEach((value) => assert(levels.has(value), `${unit.name}.supportNeeds invalid`));
   assert(unit.placement.depth && unit.placement.notes.length, `${unit.name}.placement incomplete`);
