@@ -1,14 +1,59 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0d1117"><title>Mechabellum Counter Quick Guide</title><link rel="stylesheet" href="style.css?v=20260829b"></head><body><div class="w"><header class="hero"><h1>Mechabellum Counter Quick Guide</h1><p>敵盤面を見て10秒で回答候補を引く。Compガイドは二段目。</p><span class="stamp">2026-08-29 / Season 8 / 1.11.1.x</span></header><div class="sticky"><input id="q" type="search" placeholder="敵を検索: Rhino, Vortex, 中型密集, Air..." autocomplete="off"><div class="chips"><button class="chip on" data-f="all">全部</button><button class="chip" data-f="counter">Counterだけ</button><button class="chip" data-f="meta">最新Comp</button><button class="chip" data-f="aggro">Aggro</button><button class="chip" data-f="defense">Defense</button><button class="chip" data-f="standard">Standard</button><button class="chip" data-f="wiki">Wiki定番</button></div></div><div class="toplinks"><a href="#counter"><b>⚡ Counter早見</b><br><span class="hint">開いた時点で全部表示</span></a><a href="#meta"><b>🔥 Compガイド</b><br><span class="hint">方針に迷った時</span></a></div><section id="counter"><h2 class="title">⚡ 盤面パターン → Counter</h2><p class="hint">相手の構成をざっくり分類できる時はここが最速。検索は任意。</p><div id="boardcounter" class="counterbox"><div class="cr"><strong>読み込み中…</strong><div class="why">Counter一覧が数秒経っても出なければページ更新。</div></div></div><h2 class="title smalltitle">🎯 ユニット別 Counter</h2><p class="hint">候補を絞るための早見。Tech・Lv・配置で逆転するので「絶対相性」ではない。</p><div id="counterbox" class="counterbox"></div><p class="src counter-src"><a href="https://mechamonarch.com/guide/mechabellum-counters/" target="_blank" rel="noopener">MechaMonarch Counter List</a> / <a href="https://mechabellum.wiki.gg/" target="_blank" rel="noopener">Current Wiki</a> をベースにSeason 8新ユニットも補完。</p></section><section id="meta"><h2 class="title">🔥 直近メタ / 流行 <button class="close" data-sec="meta">全部閉じる</button></h2><p class="hint">Starting Packから方針を作る時、または相手の狙いを読む時に使う。</p><div id="metagrid" class="grid"></div></section><section id="library"><h2 class="title">📚 MAG1系 Wiki 定番 <button class="close" data-sec="library">全部閉じる</button></h2><p class="hint">wiki.mbxmas.com Strategy Guidesを試合用に圧縮。</p><div id="wikigrid" class="grid"></div></section><footer class="foot"><p><b>実戦の順番:</b> 相手の投資を見る → Counter早見 → 自分の既存盤面に無理なく足せる回答を選ぶ → 次ラウンドのcounter-counterを見る。</p><p>Compは完成形をforceするレシピではなく、役割分担のテンプレとして使う。</p></footer></div><script src="data0.js?v=20260829b"></script><script src="data1.js?v=20260829b"></script><script src="data2.js?v=20260829b"></script><script src="data3.js?v=20260829b"></script><script src="counters-v2.js?v=20260829b"></script><script>
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const card=d=>`<details class="card searchable" data-type="comp" data-tags="${esc(d.g)}"><summary><div class="top"><div><div class="name">${esc(d.n)}</div><div class="core">${esc(d.c)}</div></div><span class="kind ${d.k}">${d.k==='meta'?'CURRENT':'WIKI'}</span></div><div class="one">${esc(d.o)}</div></summary><div class="ct"><div class="b"><div class="lab">STARTER / 入り条件</div><p>${esc(d.s)}</p></div><div class="b"><div class="lab">ROUND PLAN</div><div class="rounds">${d.r.map(r=>`<div class="round"><div class="rl">${esc(r[0])}</div><div class="rt">${esc(r[1])}</div></div>`).join('')}</div></div><div class="b"><div class="lab">推奨 TECH</div><div class="tech">${d.t.map(x=>`<span class="pill">${esc(x)}</span>`).join('')}</div></div><div class="b"><div class="lab">追加ユニット候補</div><ul>${d.a.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div><div class="b"><div class="lab">このCOMPの弱点 / COUNTER</div><p class="bad">${esc(d.x)}</p></div><div class="b"><div class="lab">敵がこれなら</div><p class="good">${esc(d.v)}</p></div><div class="src"><a href="${esc(d.u)}" target="_blank" rel="noopener">参考元を開く</a></div></div></details>`;
-const crow=(x,kind)=>`<div class="cr searchable" data-type="counter" data-tags="${esc((x[3]||'')+' '+kind)}"><div class="crhead"><strong>${esc(x[0])}</strong>${kind==='board'?'<span class="tag">BOARD</span>':''}</div><div class="ans">→ ${esc(x[1])}</div><div class="why">${esc(x[2])}</div></div>`;
-function render(){
-  if(!Array.isArray(BOARD_COUNTERS)||!Array.isArray(COUNTERS)) throw new Error('counter data missing');
-  document.getElementById('boardcounter').innerHTML=BOARD_COUNTERS.map(x=>crow(x,'board')).join('');
-  document.getElementById('counterbox').innerHTML=COUNTERS.map(x=>crow(x,'unit')).join('');
-  document.getElementById('metagrid').innerHTML=GUIDE_DATA.filter(x=>x.k==='meta').map(card).join('');
-  document.getElementById('wikigrid').innerHTML=GUIDE_DATA.filter(x=>x.k==='wiki').map(card).join('');
-}
-try{render()}catch(e){document.getElementById('boardcounter').innerHTML='<div class="cr"><strong>Counterデータ読み込みエラー</strong><div class="why">古いキャッシュとの不整合。ページを再読み込みしてください。</div></div>';console.error(e)}
-const q=document.getElementById('q'),chips=[...document.querySelectorAll('.chip')];let f='all';const items=()=>[...document.querySelectorAll('.searchable')];function apply(){const s=q.value.trim().toLowerCase();items().forEach(el=>{const h=(el.innerText+' '+(el.dataset.tags||'')).toLowerCase();let typeok=true;if(f==='counter')typeok=el.dataset.type==='counter';else if(f!=='all')typeok=el.dataset.type==='comp'&&(el.dataset.tags||'').split(/\s+/).includes(f);el.classList.toggle('hidden',!((!s||h.includes(s))&&typeok))})}q.addEventListener('input',apply);chips.forEach(b=>b.onclick=()=>{chips.forEach(x=>x.classList.remove('on'));b.classList.add('on');f=b.dataset.f;apply()});document.querySelectorAll('.close').forEach(b=>b.onclick=()=>document.querySelectorAll('#'+b.dataset.sec+' details').forEach(d=>d.open=false));
-</script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#091018">
+  <title>Mechabellum Counter + Package Guide</title>
+  <link rel="stylesheet" href="style.css?v=20260830a">
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="Main navigation">
+      <a class="active" href="index.html">COUNTER</a><a href="units.html">UNITS</a><a href="comps.html">COMPS</a>
+    </nav>
+    <header class="page-head">
+      <p class="eyebrow">SEASON 8 · LIVE 1.11.1.3</p>
+      <h1>Counter + Package</h1>
+      <p>敵unitを一度ずつ選択。最大3unitの役割packageを即時計算します。</p>
+    </header>
+
+    <div id="data-status" class="data-status" role="status">Tactical dataを読み込み中…</div>
+    <noscript><div class="data-error">JavaScriptが無効なため計算できません。</div></noscript>
+
+    <div class="action-bar">
+      <div><span id="enemy-count">ENEMY 0</span><span id="own-count">OWN 0</span></div>
+      <button id="clear-all" class="clear-button" type="button">CLEAR ALL</button>
+    </div>
+
+    <main>
+      <section aria-labelledby="enemy-title">
+        <div class="section-head"><h2 id="enemy-title">ENEMY</h2><button id="clear-enemy" class="text-button" type="button">Clear enemy</button></div>
+        <div id="enemy-grid" class="unit-grid" aria-label="Enemy units"></div>
+      </section>
+
+      <details id="own-panel" class="own-panel">
+        <summary>+ OWN ARMY <span>optional</span></summary>
+        <div class="section-head own-head"><h2>OWN ARMY</h2><button id="clear-own" class="text-button" type="button">Clear own</button></div>
+        <div id="own-grid" class="unit-grid" aria-label="Own army units"></div>
+      </details>
+
+      <section class="results-section" aria-labelledby="results-title">
+        <div class="section-head"><h2 id="results-title">RESULTS</h2><span id="calc-time" class="calc-time"></span></div>
+        <p id="result-empty" class="empty">Enemyを選ぶとpackageを表示します。</p>
+        <div id="results" class="results" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>No-tech・同Lv・中立配置の判断補助。数量や戦闘結果をシミュレートするものではありません。</p>
+    </footer>
+  </div>
+  <script src="data/units.js?v=20260830a"></script>
+  <script src="data/tech-exceptions.js?v=20260830a"></script>
+  <script src="data/matchups.js?v=20260830a"></script>
+  <script src="data/strategy.js?v=20260830a"></script>
+  <script src="calculator.js?v=20260830a"></script>
+  <script src="app.js?v=20260830a"></script>
+</body>
+</html>

@@ -23,7 +23,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Smoke test
+      - name: Validate tactical data
+        run: node tests/validate-data.js
+      - name: Test package calculator
+        run: node tests/calculator.test.js
+      - name: Smoke test pages
         run: node smoke-test.js
       - name: Setup Pages
         uses: actions/configure-pages@v5
