@@ -24,12 +24,11 @@ const vortex = calculator.calculate(["Vortex"], []);
 assert(vortex[0].package.some((name) => ["Phoenix", "Phantom Ray", "Wraith"].includes(name)), "Scenario B must recognize Air answer");
 assert(vortex[0].details.techNotes.some((note) => note.includes("Ground Only")), "Scenario B needs baseline targeting note");
 
-const withoutOwn = calculator.calculate(["Tarantula"], []);
-const withOwn = calculator.calculate(["Tarantula"], ["Crawler", "Arclight"]);
-assert.notDeepStrictEqual(withOwn[0].package, withoutOwn[0].package, "Own Army must change recommendation");
-assert.strictEqual(withOwn[0].package.length, 1, "Scenario C should not add unnecessary support");
-assert(!withOwn[0].package.includes("Crawler") && !withOwn[0].package.includes("Arclight"), "existing Own roles must not be re-added");
-assert(withOwn[0].details.support.chaff.some((line) => line.includes("確保済み")), "Own chaff must be shown as already secured");
+const withOwn = calculator.calculate(["Crawler"], ["Arclight"]);
+assert.strictEqual(withOwn[0].assignments[0].answer, "OWN Arclight", "adequate Own answer must be used by assignment");
+assert.strictEqual(withOwn[0].assignments[0].source, "own", "assignment must expose Own source");
+assert.strictEqual(withOwn[0].package.length, 0, "fully covered enemy must require no new unit");
+assert(!withOwn[0].package.includes("Arclight"), "existing Own unit must not be re-added to package");
 
 for (const enemy of ["Arclight", "Marksman", "Farseer", "Stormcaller"]) {
   const relation = calculator.matchup("Rhino", enemy);
@@ -56,7 +55,7 @@ const regression = calculator.calculate(regressionEnemies, ["Crawler"], { limit:
 assert(regression.length > 0, "specified regression scenario must return recommendations");
 regression.forEach((result) => {
   assert.deepStrictEqual(result.assignments.map((item) => item.enemy), regressionEnemies, "every enemy needs a normal assignment");
-  assert(result.assignments.every((item) => result.package.includes(item.answer) && calculator.gradeValue[item.grade] !== undefined), "assignment answer and grade must be valid");
+  assert(result.assignments.every((item) => (item.source === "own" || result.package.includes(item.answer)) && calculator.gradeValue[item.grade] !== undefined), "assignment answer and grade must be valid");
   assert(result.details.roles.length === result.package.length, "DETAILS must show one ROLE line per package unit");
   assert(result.details.support.chaff.length > 0 && result.details.support.tank.length > 0, "DETAILS must give concrete chaff and tank status");
   assert(result.details.techNotes.length <= 3, "Tech Notes must be capped at three");
@@ -69,6 +68,35 @@ for (const threat of ["Sabertooth", "Fortress"]) {
 }
 assert(rhinoResult.details.risks.some((risk) => risk.startsWith("Rhino:") && risk.includes("Sabertooth") && risk.includes("Fortress")), "Rhino exposure must be visible in concise Risks");
 
+const minimalEnemies = ["Arclight", "Crawler", "Sabertooth", "Fortress"];
+const minimalOwn = ["Crawler", "Arclight"];
+const minimal = calculator.calculate(minimalEnemies, minimalOwn, { limit: 10 });
+assert.deepStrictEqual(minimal[0].package, ["Melting Point"], "Regression 1: one-unit anti-giant pivot must lead");
+assert.deepStrictEqual(minimal[0].assignments.map((item) => item.answer), ["OWN Arclight", "OWN Arclight", "Melting Point", "Melting Point"], "Regression 1: Own must keep solved assignments");
+assert(minimal[0].necessaryUnits.includes("Melting Point") && minimal[0].missingRoleBonus > 0, "Regression 1: missing anti-giant role must add value");
+assert(!minimal[0].package.includes("Fire Badger") && !minimal[0].package.includes("Phoenix"), "Regression 1: redundant isolated counters must not enter top package");
+
+const coveredCrawler = calculator.calculate(["Crawler"], ["Arclight"], { limit: 10 });
+assert.strictEqual(coveredCrawler[0].assignments[0].answer, "OWN Arclight", "Regression 2: Own Arclight must retain Crawler duty");
+assert.deepStrictEqual(coveredCrawler[0].package, [], "Regression 2: adequate Own S counter must produce no new pivot");
+const fireOnly = calculator.scorePackage(["Fire Badger"], ["Crawler"], ["Arclight"]);
+assert(fireOnly.unnecessaryPivotPenalty > 0 && fireOnly.roleRedundancyPenalty > 0, "Regression 2: unnecessary redundant clear must be penalized");
+
+const fortressGap = calculator.calculate(["Fortress"], ["Crawler", "Arclight"]);
+assert.strictEqual(fortressGap[0].package[0], "Melting Point", "Regression 3: missing anti-giant role must favor Melting Point");
+assert(fortressGap[0].missingRoleBonus > 0 && fortressGap[0].necessaryUnits.includes("Melting Point"), "Regression 3: required new role must be recognized");
+
+const mixedGap = calculator.calculate(["Crawler", "Fortress"], ["Arclight"], { limit: 10 });
+assert.strictEqual(mixedGap[0].assignments.find((item) => item.enemy === "Crawler").answer, "OWN Arclight", "Regression 4: Own handles Crawler");
+const melterOnlyMixed = calculator.scorePackage(["Melting Point"], ["Crawler", "Fortress"], ["Arclight"]);
+const redundantMixed = calculator.scorePackage(["Fire Badger", "Melting Point"], ["Crawler", "Fortress"], ["Arclight"]);
+assert(melterOnlyMixed.score > redundantMixed.score, "Regression 4: duplicate chaff clear must not outrank minimal Fortress pivot");
+
+const melterOnly = calculator.scorePackage(["Melting Point"], ["Sabertooth", "Fortress"], minimalOwn);
+const melterPhoenix = calculator.scorePackage(["Melting Point", "Phoenix"], ["Sabertooth", "Fortress"], minimalOwn);
+assert(melterOnly.score > melterPhoenix.score, "Regression 5: Phoenix must not be added for an A-to-S-only improvement");
+assert(melterPhoenix.unnecessaryPivotPenalty > melterOnly.unnecessaryPivotPenalty, "Regression 5: redundant package member needs a marginal-value penalty");
+
 const samples = [];
 for (let index = 0; index < 20; index += 1) {
   const start = performance.now();
@@ -78,4 +106,4 @@ for (let index = 0; index < 20; index += 1) {
 const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
 const maximum = Math.max(...samples);
 assert(average < 100, `average calculation ${average.toFixed(2)}ms exceeds 100ms`);
-console.log(`PASS calculator scenarios=4 exposure=${exposed.penalty.toFixed(2)} covered=${covered.penalty.toFixed(2)} average=${average.toFixed(2)}ms max=${maximum.toFixed(2)}ms topA=${scenarioA[0].package.join("+")}`);
+console.log(`PASS calculator scenarios=9 minimal=${minimal[0].package.join("+")} exposure=${exposed.penalty.toFixed(2)} covered=${covered.penalty.toFixed(2)} average=${average.toFixed(2)}ms max=${maximum.toFixed(2)}ms topA=${scenarioA[0].package.join("+")}`);

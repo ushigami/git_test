@@ -27,6 +27,26 @@
     return { unit: candidate, grade: "C", reason: "直接相性は中立。package内のsupport役" };
   }
 
+  function existingMatchup(candidate, enemy) {
+    if (candidate === enemy) {
+      return { unit: candidate, grade: "A", reason: "同型unitで役割とlaneを維持" };
+    }
+    return matchup(candidate, enemy);
+  }
+
+  function bestOwnCoverage(enemy, ownArmy) {
+    if (!ownArmy.length) return { enemy, answer: null, answerUnit: null, source: "none", grade: "D", reason: "Own Armyに回答なし" };
+    const best = ownArmy
+      .map((candidate) => ({ candidate, ...existingMatchup(candidate, enemy) }))
+      .sort((a, b) => gradeValue[b.grade] - gradeValue[a.grade] || a.candidate.localeCompare(b.candidate))[0];
+    return { enemy, answer: `OWN ${best.candidate}`, answerUnit: best.candidate, source: "own", grade: best.grade, reason: best.reason };
+  }
+
+  function coverageState(grade) {
+    const value = gradeValue[grade];
+    return value >= 4 ? "covered" : (value === 3 ? "partial" : "uncovered");
+  }
+
   function roleSet(names) {
     const byName = unitByName();
     const roles = new Set();
@@ -49,22 +69,24 @@
     return output;
   }
 
-  function candidatePool(enemies, ownSet) {
+  function candidatePool(enemies, ownSet, baseline) {
     const scores = new Map();
     const add = (name, value) => {
       if (byName.has(name) && !ownSet.has(name)) scores.set(name, Math.max(scores.get(name) || 0, value));
     };
     enemies.forEach((enemy) => {
+      const state = coverageState(baseline.get(enemy)?.grade || "D");
+      const needWeight = state === "uncovered" ? 42 : (state === "partial" ? 24 : 2);
       (data.matchups?.[enemy] || []).forEach((entry) => {
-        add(entry.unit, gradeValue[entry.grade] * 10);
+        add(entry.unit, needWeight + gradeValue[entry.grade] * 4);
         const unit = byName.get(entry.unit);
-        Object.values(unit.preferredSupport).flat().forEach((name) => add(name, 8));
-        unit.synergies.forEach((item) => add(item.unit, 9));
+        Object.values(unit.preferredSupport).flat().forEach((name) => add(name, state === "covered" ? 1 : 7));
+        unit.synergies.forEach((item) => add(item.unit, state === "covered" ? 1 : 8));
       });
     });
     return [...scores]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 22)
+      .slice(0, 14)
       .map(([name]) => name);
   }
 
@@ -74,35 +96,51 @@
       .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))[0].name;
   }
 
-  function supportPenalty(core, roles) {
-    const penalties = { high: 12, medium: 5, low: 0 };
-    let value = 0;
-    if (!roles.has("chaff") && !roles.has("screen")) value += penalties[core.supportNeeds.screening];
-    if (!roles.has("chaff_clear")) value += penalties[core.supportNeeds.chaffClear];
-    if (!roles.has("tank") && !roles.has("screen")) value += penalties[core.supportNeeds.tanking];
-    return value;
-  }
-
-  function synergyBonus(packageUnits) {
+  function synergyBonus(packageUnits, ownArmy) {
     const byName = unitByName();
     let value = 0;
     packageUnits.forEach((name) => {
       const partners = new Set((byName.get(name)?.synergies || []).map((item) => item.unit));
       packageUnits.forEach((other) => { if (other !== name && partners.has(other)) value += 1.5; });
+      ownArmy.forEach((other) => { if (partners.has(other)) value += 1; });
     });
     return value;
   }
 
-  function redundancyPenalty(packageUnits, enemies) {
-    if (packageUnits.length < 2) return 0;
+  function chooseAssignment(enemy, ownArmy, packageUnits) {
+    const candidates = [
+      ...ownArmy.map((candidate) => ({ candidate, source: "own", ...existingMatchup(candidate, enemy) })),
+      ...packageUnits.map((candidate) => ({ candidate, source: "package", ...matchup(candidate, enemy) }))
+    ];
+    if (!candidates.length) {
+      return { enemy, answer: "UNKNOWN", answerUnit: null, source: "none", grade: "D", reason: "回答unitなし" };
+    }
+    const best = candidates.sort((a, b) => {
+      const ownBonus = (item) => item.source === "own" ? (gradeValue[item.grade] >= 4 ? 12 : (gradeValue[item.grade] === 3 ? 4 : 0)) : 0;
+      const value = (item) => gradeValue[item.grade] * 10 + ownBonus(item);
+      const sourceOrder = a.source === b.source ? 0 : (a.source === "own" ? -1 : 1);
+      return value(b) - value(a) || sourceOrder || a.candidate.localeCompare(b.candidate);
+    })[0];
+    return {
+      enemy,
+      answer: best.source === "own" ? `OWN ${best.candidate}` : best.candidate,
+      answerUnit: best.candidate,
+      source: best.source,
+      grade: best.grade,
+      reason: best.reason
+    };
+  }
+
+  function roleRedundancy(packageUnits, ownArmy, necessaryUnits) {
+    const ownRoles = roleSet(ownArmy);
     let penalty = 0;
     packageUnits.forEach((name) => {
-      const useful = enemies.some((enemy) => {
-        const own = gradeValue[matchup(name, enemy).grade];
-        const bestOther = Math.max(...packageUnits.filter((item) => item !== name).map((item) => gradeValue[matchup(item, enemy).grade]));
-        return own > bestOther;
-      });
-      if (!useful) penalty += 2.5;
+      const roles = byName.get(name)?.roles || [];
+      const overlapOwn = roles.filter((role) => ownRoles.has(role)).length;
+      penalty += overlapOwn * (necessaryUnits.has(name) ? 1 : 4);
+      const partners = packageUnits.filter((other) => other !== name);
+      const overlapPackage = roles.filter((role) => partners.some((other) => (byName.get(other)?.roles || []).includes(role))).length;
+      penalty += overlapPackage * (necessaryUnits.has(name) ? 0.5 : 2);
     });
     return penalty;
   }
@@ -138,34 +176,64 @@
   }
 
   function scorePackage(packageUnits, enemies, ownArmy) {
-    const assignments = enemies.map((enemy) => {
-      const best = packageUnits
-        .map((candidate) => ({ candidate, ...matchup(candidate, enemy) }))
-        .sort((a, b) => gradeValue[b.grade] - gradeValue[a.grade] || a.candidate.localeCompare(b.candidate))[0];
-      return { enemy, answer: best.candidate, grade: best.grade, reason: best.reason };
+    const baselineCoverage = enemies.map((enemy) => bestOwnCoverage(enemy, ownArmy));
+    const baselineByEnemy = new Map(baselineCoverage.map((item) => [item.enemy, item]));
+    const assignments = enemies.map((enemy) => chooseAssignment(enemy, ownArmy, packageUnits));
+    let coverageScore = 0;
+    let adequateReplacementPenalty = 0;
+    assignments.forEach((item) => {
+      const baseline = baselineByEnemy.get(item.enemy);
+      const before = gradeValue[baseline.grade];
+      const after = gradeValue[item.grade];
+      if (before >= 4) {
+        if (item.source === "package") adequateReplacementPenalty += 24;
+        return;
+      }
+      if (before === 3) {
+        if (after >= 4) coverageScore += 24 + (after - 4) * 8;
+        else if (after > before) coverageScore += 8;
+        return;
+      }
+      if (after >= 4) coverageScore += after === 5 ? 60 : 48;
+      else if (after === 3) coverageScore += 16;
     });
-    const coverage = assignments.reduce((sum, item) => sum + gradeValue[item.grade] * 10, 0);
-    const strongCoverage = assignments.filter((item) => gradeValue[item.grade] >= 4).length * 5;
-    const roles = roleSet([...ownArmy, ...packageUnits]);
-    const coreName = coreFor(packageUnits, enemies);
-    const core = unitByName().get(coreName);
+
+    const necessaryUnits = new Set();
+    packageUnits.forEach((name) => {
+      const without = enemies.map((enemy) => chooseAssignment(enemy, ownArmy, packageUnits.filter((item) => item !== name)));
+      const necessary = assignments.some((item, index) => gradeValue[item.grade] >= 4 && gradeValue[without[index].grade] < 4);
+      if (necessary) necessaryUnits.add(name);
+    });
+    const unnecessaryPivotPenalty = (packageUnits.length - necessaryUnits.size) * 24;
     const ownRoles = roleSet(ownArmy);
-    const ownComplement = core && (
-      (core.supportNeeds.screening !== "low" && (ownRoles.has("chaff") || ownRoles.has("screen"))) ||
-      (core.supportNeeds.chaffClear !== "low" && ownRoles.has("chaff_clear")) ||
-      (core.supportNeeds.tanking !== "low" && (ownRoles.has("tank") || ownRoles.has("screen")))
-    ) ? 5 : 0;
-    const penalty = (core ? supportPenalty(core, roles) : 0)
-      + (packageUnits.length - 1) * 4.5
-      + redundancyPenalty(packageUnits, enemies);
+    const missingRoleSet = new Set();
+    packageUnits.forEach((name) => {
+      if (!necessaryUnits.has(name)) return;
+      (byName.get(name)?.roles || []).forEach((role) => { if (!ownRoles.has(role)) missingRoleSet.add(role); });
+    });
+    const missingRoleBonus = Math.min(12, missingRoleSet.size * 4);
+    const roleRedundancyPenalty = roleRedundancy(packageUnits, ownArmy, necessaryUnits);
+    const newUnitPenalty = packageUnits.length * 12 + Math.pow(Math.max(0, packageUnits.length - 1), 2) * 8;
+    const coreName = packageUnits.length ? coreFor(packageUnits, enemies) : null;
     const exposure = evaluateExposure(packageUnits, enemies);
+    const adequateCoverage = assignments.filter((item) => gradeValue[item.grade] >= 4).length;
     return {
       package: packageUnits,
       core: coreName,
       assignments,
+      baselineCoverage,
+      adequateCoverage,
       exposure: exposure.items,
       exposurePenalty: exposure.penalty,
-      score: coverage + strongCoverage + synergyBonus(packageUnits) + ownComplement - penalty - exposure.penalty
+      newUnitPenalty,
+      roleRedundancyPenalty,
+      missingRoleBonus,
+      unnecessaryPivotPenalty,
+      adequateReplacementPenalty,
+      necessaryUnits: [...necessaryUnits],
+      score: coverageScore + missingRoleBonus + synergyBonus(packageUnits, ownArmy)
+        - newUnitPenalty - roleRedundancyPenalty - unnecessaryPivotPenalty
+        - adequateReplacementPenalty - exposure.penalty
     };
   }
 
@@ -174,23 +242,25 @@
     const core = byName.get(result.core);
 
     const namesWithRole = (names, roles) => names.filter((name) => (byName.get(name)?.roles || []).some((role) => roles.includes(role)));
-    const supportLine = (roles, key, fallback, need) => {
+    const supportLine = (roles, key, fallback, need, securedLabel) => {
       const ownProviders = namesWithRole(ownArmy, roles);
-      if (ownProviders.length) return [`✓ ${ownProviders.join(" / ")}で確保済み`];
+      if (ownProviders.length) return [`✓ ${ownProviders.join(" / ")}で${securedLabel}確保済み`];
       const packageProviders = namesWithRole(result.package, roles);
-      if (packageProviders.length) return [`✓ ${packageProviders.join(" / ")}で確保`];
+      if (packageProviders.length) return [`✓ ${packageProviders.join(" / ")}で${securedLabel}確保`];
+      if (!core) return ["今回のEnemy coverageでは追加不要"];
       const recommendations = [...new Set([...(core.preferredSupport?.[key] || []), ...fallback])].slice(0, 2);
       return recommendations.map((name, index) => `${index === 0 && need === "high" ? "◎" : "○"} ${name}`);
     };
 
-    const roles = result.package.map((name) => {
+    const roleUnits = result.package.length ? result.package : ownArmy;
+    const roles = roleUnits.map((name) => {
       const labels = (byName.get(name)?.roles || []).map((role) => data.strategy?.roles?.[role] || role);
-      return `${name} → ${labels.join(" / ")}`;
+      return `${result.package.length ? name : `OWN ${name}`} → ${labels.join(" / ")}`;
     });
     const support = {
-      chaff: supportLine(["chaff", "screen"], "chaff", ["Crawler", "Fang"], core.supportNeeds.screening),
-      tank: supportLine(["tank"], "tank", ["Sledgehammer", "Fortress"], core.supportNeeds.tanking),
-      clear: supportLine(["chaff_clear"], "clear", ["Arclight", "Fire Badger"], core.supportNeeds.chaffClear)
+      chaff: supportLine(["chaff", "screen"], "chaff", ["Crawler", "Fang"], core?.supportNeeds.screening || "low", ""),
+      tank: supportLine(["tank"], "tank", ["Sledgehammer", "Fortress"], core?.supportNeeds.tanking || "low", ""),
+      clear: supportLine(["chaff_clear"], "clear", ["Arclight", "Fire Badger"], core?.supportNeeds.chaffClear || "low", "Chaff clear")
     };
 
     const techNotes = [];
@@ -215,13 +285,15 @@
 
     return {
       roles,
-      placement: result.package.map((name) => {
+      placement: result.package.length ? result.package.map((name) => {
         const unit = byName.get(name);
         const depth = data.strategy?.depth?.[unit.placement.depth] || unit.placement.depth;
         return `${name}: ${depth} — ${unit.placement.notes[0]}`;
-      }),
+      }) : ["新規unitなし。既存配置を維持。"],
       support,
-      risks: [...new Set([...exposureRisks, ...unitRisks])].slice(0, 4),
+      risks: ([...new Set([...exposureRisks, ...unitRisks])].slice(0, 4).length
+        ? [...new Set([...exposureRisks, ...unitRisks])].slice(0, 4)
+        : ["新規pivotなし。Lv / Tech差を確認。"]),
       techNotes: techNotes.slice(0, 3)
     };
   }
@@ -232,22 +304,19 @@
     if (!enemies.length) return [];
     const limit = Math.max(1, Math.min(10, options?.limit || 5));
     const ownSet = new Set(ownArmy);
-    const candidates = candidatePool(enemies, ownSet);
-    const ranked = combinations(candidates, 3)
+    const baseline = new Map(enemies.map((enemy) => [enemy, bestOwnCoverage(enemy, ownArmy)]));
+    const candidates = candidatePool(enemies, ownSet, baseline);
+    const ranked = [[], ...combinations(candidates, 3)]
       .map((packageUnits) => scorePackage(packageUnits, enemies, ownArmy))
-      .sort((a, b) => b.score - a.score || a.package.length - b.package.length || a.package.join("+").localeCompare(b.package.join("+")))
+      .sort((a, b) => b.adequateCoverage - a.adequateCoverage || b.score - a.score || a.package.length - b.package.length || a.package.join("+").localeCompare(b.package.join("+")))
       .slice(0, limit)
       .map((result, index) => ({
         ...result,
-        label: index === 0 ? "RECOMMENDED" : (result.score >= rankedThreshold(enemies.length, 4) ? "GOOD" : "CONDITIONAL"),
+        label: index === 0 ? "RECOMMENDED" : (result.adequateCoverage === enemies.length ? "GOOD" : "CONDITIONAL"),
         details: details(result, enemies, ownArmy)
       }));
     return ranked;
   }
 
-  function rankedThreshold(enemyCount, grade) {
-    return enemyCount * grade * 10;
-  }
-
-  return { calculate, matchup, directMatchup, evaluateExposure, scorePackage, combinations, gradeValue };
+  return { calculate, matchup, existingMatchup, bestOwnCoverage, chooseAssignment, directMatchup, evaluateExposure, scorePackage, combinations, gradeValue };
 });

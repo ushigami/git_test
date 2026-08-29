@@ -7,7 +7,7 @@ for (const file of ["data0.js", "data1.js", "data2.js", "data3.js"]) {
 if (!Array.isArray(GUIDE_DATA) || GUIDE_DATA.length < 15) throw new Error("existing GUIDE_DATA missing/too small");
 
 const expected = {
-  "index.html": ["COUNTER", "enemy-grid", "own-panel", "clear-all", "results", "calculator.js?v=20260830b"],
+  "index.html": ["COUNTER", "enemy-grid", "own-panel", "clear-all", "results", "calculator.js?v=20260830c"],
   "units.html": ["UNITS", "unit-list", "units-page.js?v=20260830b"],
   "comps.html": ["COMPS", "comp-list", "data0.js?v=20260830b", "comps-page.js?v=20260830b"]
 };

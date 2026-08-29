@@ -34,7 +34,9 @@
   }
 
   function renderResult(result, index) {
-    const packageNames = result.package.map((name) => `<span>${esc(name)}</span>`).join("<b>+</b>");
+    const packageNames = result.package.length
+      ? result.package.map((name) => `<span>${esc(name)}</span>`).join("<b>+</b>")
+      : "<span>NO NEW UNIT</span>";
     const assignments = result.assignments.map((item) => `
       <div class="assignment"><span>${esc(item.enemy)}</span><i>→</i><strong>${esc(item.answer)}</strong><em class="grade grade-${item.grade}">${item.grade}</em></div>`).join("");
     return `<article class="result-card">
