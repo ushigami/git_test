@@ -2,6 +2,10 @@
   "use strict";
   const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
   const block = (title, values) => `<div class="guide-block"><h3>${title}</h3>${values.map((value) => `<p>${esc(value)}</p>`).join("")}</div>`;
+  const techSets = (sets) => {
+    if (!Array.isArray(sets) || !sets.length) return block("RECOMMENDED TECH SET", ["Tech setup data unavailable"]);
+    return `<div class="guide-block recommended-tech"><h3>RECOMMENDED TECH SET</h3>${sets.map((set) => `<section class="tech-set"><strong>${esc(set.name)}</strong><div class="tech-pills">${set.techs.map((tech) => `<span>${esc(tech)}</span>`).join("")}</div><p>${esc(set.note)}</p></section>`).join("")}</div>`;
+  };
   try {
     const data = window.MECH_DATA;
     if (!data || data.units?.length !== 33) throw new Error("33-unit data missing");
@@ -16,6 +20,7 @@
         ${block("SYNERGY", unit.synergies.map((item) => `${item.unit}: ${item.reason}`))}
         ${block("GOOD AGAINST", unit.goodAgainst)}
         ${block("BAD AGAINST", unit.badAgainst)}
+        ${techSets(unit.recommendedTechSets)}
         ${block("IMPORTANT TECH EXCEPTIONS", techs.length ? techs.map((item) => `${item.name}: ${item.effect}`) : ["大きく役割を変える例外は未登録"])}
         ${block("COMMON FAILURE", unit.risks)}
       </div></details>`;

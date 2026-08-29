@@ -11,7 +11,7 @@ assert.strictEqual(new Set(ids).size, 33, "unit IDs must be unique");
 assert.deepStrictEqual(names, names.slice().sort((a, b) => a.localeCompare(b)), "units must be A-Z");
 const known = new Set(names);
 const levels = new Set(["low", "medium", "high"]);
-const required = ["roles", "target", "cost", "unlockCost", "supportNeeds", "preferredSupport", "synergies", "placement", "risks", "techExceptions", "goodAgainst", "badAgainst", "sources"];
+const required = ["roles", "target", "cost", "unlockCost", "supportNeeds", "preferredSupport", "synergies", "placement", "risks", "techExceptions", "recommendedTechSets", "goodAgainst", "badAgainst", "sources"];
 
 for (const unit of data.units) {
   required.forEach((field) => assert(unit[field] != null, `${unit.name}.${field} missing`));
@@ -27,7 +27,21 @@ for (const unit of data.units) {
   unit.synergies.forEach((item) => assert(known.has(item.unit) && item.reason, `${unit.name} synergy invalid`));
   const techIds = new Set((data.techExceptions[unit.name] || []).map((item) => item.id));
   unit.techExceptions.forEach((id) => assert(techIds.has(id), `${unit.name} references unknown tech ${id}`));
+  const catalog = new Set(data.recommendedTechCatalog[unit.name] || []);
+  assert(catalog.size >= 4, `${unit.name} verified tech catalog missing`);
+  assert(unit.recommendedTechSets.length >= 1 && unit.recommendedTechSets.length <= 2, `${unit.name} needs 1-2 recommended tech sets`);
+  unit.recommendedTechSets.forEach((set) => {
+    assert(set.name && set.note, `${unit.name} recommended set metadata missing`);
+    assert.strictEqual(set.techs.length, 4, `${unit.name}/${set.name} must contain exactly 4 techs`);
+    assert.strictEqual(new Set(set.techs).size, 4, `${unit.name}/${set.name} contains duplicate techs`);
+    set.techs.forEach((tech) => assert(catalog.has(tech), `${unit.name}/${set.name} cannot use ${tech}`));
+  });
 }
+
+assert.strictEqual(Object.keys(data.recommendedTechCatalog).length, 33, "verified tech catalog must cover all 33 units");
+const vortex = data.units.find((unit) => unit.name === "Vortex");
+assert.deepStrictEqual(vortex.recommendedTechSets.map((set) => set.name), ["STANDARD", "CARRY"], "Vortex needs current standard and carry setups");
+assert.deepStrictEqual(vortex.recommendedTechSets[0].techs, ["Range Enhancement", "Grid Integration", "Mobile Power Station", "Field Maintenance"], "Vortex standard setup regression");
 
 assert.deepStrictEqual(Object.keys(data.matchups).sort(), names.slice().sort(), "every unit needs direct matchup data");
 for (const [enemy, entries] of Object.entries(data.matchups)) {

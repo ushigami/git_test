@@ -29,6 +29,8 @@ jobs:
         run: node tests/calculator.test.js
       - name: Verify UI contract
         run: node tests/ui-contract.test.js
+      - name: Test unit tech setup rendering
+        run: node tests/units-page.test.js
       - name: Smoke test pages
         run: node smoke-test.js
       - name: Setup Pages

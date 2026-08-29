@@ -158,6 +158,11 @@ a { color: inherit; }
 .unit-guide[open], .comp-card[open] { border-color: #3b6078; }
 .unit-guide-body { display: grid; gap: 10px; padding: 12px; border-top: 1px solid var(--line); background: var(--panel-2); }
 .guide-block p { margin: 2px 0; color: #cad6e1; font-size: 11px; }
+.tech-set + .tech-set { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tech-set > strong { display: block; margin-bottom: 4px; color: var(--amber); font-size: 9px; letter-spacing: .08em; }
+.tech-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.tech-pills span { padding: 3px 5px; border: 1px solid var(--line); border-radius: 5px; color: #dce6ef; background: #0b1621; font-size: 9px; line-height: 1.25; }
+.tech-set > p { margin-top: 5px; color: var(--muted); font-size: 10px; }
 
 .comp-tools { position: sticky; top: 0; z-index: 15; padding: 8px 0; background: rgb(13 17 23 / 94%); border-bottom: 1px solid var(--line); backdrop-filter: blur(10px); }
 #comp-search { width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: #090e14; font-size: 16px; }
