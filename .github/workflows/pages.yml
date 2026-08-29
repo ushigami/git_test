@@ -27,6 +27,8 @@ jobs:
         run: node tests/validate-data.js
       - name: Test package calculator
         run: node tests/calculator.test.js
+      - name: Verify UI contract
+        run: node tests/ui-contract.test.js
       - name: Smoke test pages
         run: node smoke-test.js
       - name: Setup Pages

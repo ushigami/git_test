@@ -41,11 +41,14 @@
       <div class="result-top"><span class="rank">${index + 1}</span><div><div class="package">${packageNames}</div><span class="recommendation">${esc(result.label)}</span></div></div>
       <div class="assignments">${assignments}</div>
       <details class="result-details"><summary>DETAILS</summary><div class="detail-grid">
-        ${list("WHY", result.details.why)}
+        ${list("ROLE", result.details.roles)}
         ${list("PLACEMENT", result.details.placement)}
-        ${list("SUPPORT", result.details.support)}
+        ${list("CHAFF", result.details.support.chaff)}
+        ${list("TANK / FRONTLINE", result.details.support.tank)}
+        ${list("CLEAR / SUPPORT", result.details.support.clear)}
         ${list("RISKS", result.details.risks, "risk")}
         ${list("TECH NOTES", result.details.techNotes, "tech-note")}
+        <button class="close-details" type="button">CLOSE DETAILS</button>
       </div></details>
     </article>`;
   }
@@ -98,6 +101,12 @@
       $("clear-all").addEventListener("click", clearAll);
       $("clear-enemy").addEventListener("click", () => clear("enemy"));
       $("clear-own").addEventListener("click", () => clear("own"));
+      $("results").addEventListener("click", (event) => {
+        const button = event.target.closest(".close-details");
+        if (!button) return;
+        const details = button.closest(".result-details");
+        if (details) details.open = false;
+      });
       $("data-status").hidden = true;
       update();
       window.MECH_APP = { state, clearAll, update };

@@ -13,8 +13,12 @@
   ]));
   const unitByName = () => byName;
 
+  function directMatchup(candidate, enemy) {
+    return matchupIndex.get(enemy)?.get(candidate) || null;
+  }
+
   function matchup(candidate, enemy) {
-    const exact = matchupIndex.get(enemy)?.get(candidate);
+    const exact = directMatchup(candidate, enemy);
     if (exact) return exact;
     const unit = unitByName().get(candidate);
     if (unit && unit.goodAgainst.includes(enemy)) {
@@ -103,6 +107,36 @@
     return penalty;
   }
 
+  function evaluateExposure(packageUnits, enemies) {
+    const items = [];
+    packageUnits.forEach((candidate) => {
+      enemies.forEach((threat) => {
+        const incoming = directMatchup(threat, candidate);
+        if (!incoming || gradeValue[incoming.grade] < 4) return;
+        const mitigation = packageUnits
+          .filter((other) => other !== candidate)
+          .map((other) => ({ unit: other, matchup: directMatchup(other, threat) }))
+          .filter((item) => item.matchup && gradeValue[item.matchup.grade] >= 4)
+          .sort((a, b) => gradeValue[b.matchup.grade] - gradeValue[a.matchup.grade] || a.unit.localeCompare(b.unit))[0];
+        const basePenalty = incoming.grade === "S" ? 14 : 9;
+        const mitigationRate = mitigation ? (mitigation.matchup.grade === "S" ? 0.75 : 0.55) : 0;
+        const appliedPenalty = Number((basePenalty * (1 - mitigationRate)).toFixed(2));
+        items.push({
+          candidate,
+          threat,
+          grade: incoming.grade,
+          reason: incoming.reason,
+          condition: incoming.condition || "baseline",
+          mitigatedBy: mitigation?.unit || null,
+          mitigationGrade: mitigation?.matchup.grade || null,
+          basePenalty,
+          appliedPenalty
+        });
+      });
+    });
+    return { items, penalty: items.reduce((sum, item) => sum + item.appliedPenalty, 0) };
+  }
+
   function scorePackage(packageUnits, enemies, ownArmy) {
     const assignments = enemies.map((enemy) => {
       const best = packageUnits
@@ -124,42 +158,71 @@
     const penalty = (core ? supportPenalty(core, roles) : 0)
       + (packageUnits.length - 1) * 4.5
       + redundancyPenalty(packageUnits, enemies);
+    const exposure = evaluateExposure(packageUnits, enemies);
     return {
       package: packageUnits,
       core: coreName,
       assignments,
-      score: coverage + strongCoverage + synergyBonus(packageUnits) + ownComplement - penalty
+      exposure: exposure.items,
+      exposurePenalty: exposure.penalty,
+      score: coverage + strongCoverage + synergyBonus(packageUnits) + ownComplement - penalty - exposure.penalty
     };
   }
 
   function details(result, enemies, ownArmy) {
     const byName = unitByName();
-    const allRoles = roleSet([...ownArmy, ...result.package]);
     const core = byName.get(result.core);
-    const missing = [];
-    if (core.supportNeeds.screening !== "low" && !allRoles.has("chaff") && !allRoles.has("screen")) missing.push("screen/chaffが不足");
-    if (core.supportNeeds.chaffClear !== "low" && !allRoles.has("chaff_clear")) missing.push("chaff clearが不足");
-    if (core.supportNeeds.tanking !== "low" && !allRoles.has("tank") && !allRoles.has("screen")) missing.push("frontlineが不足");
+
+    const namesWithRole = (names, roles) => names.filter((name) => (byName.get(name)?.roles || []).some((role) => roles.includes(role)));
+    const supportLine = (roles, key, fallback, need) => {
+      const ownProviders = namesWithRole(ownArmy, roles);
+      if (ownProviders.length) return [`✓ ${ownProviders.join(" / ")}で確保済み`];
+      const packageProviders = namesWithRole(result.package, roles);
+      if (packageProviders.length) return [`✓ ${packageProviders.join(" / ")}で確保`];
+      const recommendations = [...new Set([...(core.preferredSupport?.[key] || []), ...fallback])].slice(0, 2);
+      return recommendations.map((name, index) => `${index === 0 && need === "high" ? "◎" : "○"} ${name}`);
+    };
+
+    const roles = result.package.map((name) => {
+      const labels = (byName.get(name)?.roles || []).map((role) => data.strategy?.roles?.[role] || role);
+      return `${name} → ${labels.join(" / ")}`;
+    });
+    const support = {
+      chaff: supportLine(["chaff", "screen"], "chaff", ["Crawler", "Fang"], core.supportNeeds.screening),
+      tank: supportLine(["tank"], "tank", ["Sledgehammer", "Fortress"], core.supportNeeds.tanking),
+      clear: supportLine(["chaff_clear"], "clear", ["Arclight", "Fire Badger"], core.supportNeeds.chaffClear)
+    };
 
     const techNotes = [];
     [...new Set([...enemies, ...result.package])].forEach((name) => {
       (data.techExceptions?.[name] || [])
-        .filter((item) => item.changes.some((change) => ["target", "matchup", "role", "missile", "spawn"].includes(change)))
-        .slice(0, 2)
-        .forEach((item) => techNotes.push(`${name} — ${item.name}: ${item.effect}`));
+        .filter((item) => item.changes.some((change) => ["target", "matchup", "role"].includes(change)))
+        .forEach((item) => {
+          if (techNotes.length < 3) techNotes.push(`${name} — ${item.name}: ${item.effect}`);
+        });
     });
-    if (!techNotes.length) techNotes.push("Role-changing Techが見えたらbaseline相性を再確認。");
+    if (!techNotes.length) techNotes.push("該当なし（baseline相性を使用）");
+
+    const exposureRisks = result.package.flatMap((candidate) => {
+      const items = result.exposure.filter((item) => item.candidate === candidate);
+      if (!items.length) return [];
+      const threats = items.map((item) => `${item.threat} (${item.grade})`).join("・");
+      const covers = [...new Set(items.map((item) => item.mitigatedBy).filter(Boolean))];
+      const mitigation = covers.length ? `${covers.join(" / ")}で緩和` : "package内カバーなし";
+      return [`${candidate}: ${threats}に露出 / ${mitigation}`];
+    });
+    const unitRisks = result.package.map((name) => `${name}: ${byName.get(name).risks[0]}`);
 
     return {
-      why: result.assignments.map((item) => `${item.enemy} → ${item.answer} (${item.grade}): ${item.reason}`),
+      roles,
       placement: result.package.map((name) => {
         const unit = byName.get(name);
         const depth = data.strategy?.depth?.[unit.placement.depth] || unit.placement.depth;
-        return `${name}: ${depth} / ${unit.placement.notes.join(" / ")}`;
+        return `${name}: ${depth} — ${unit.placement.notes[0]}`;
       }),
-      support: missing.length ? missing : [ownArmy.length ? "入力済みOwn Armyをsupportとして考慮済み。" : "package内で主要support roleを確保。"],
-      risks: [...new Set(result.package.flatMap((name) => byName.get(name).risks))].slice(0, 4),
-      techNotes
+      support,
+      risks: [...new Set([...exposureRisks, ...unitRisks])].slice(0, 4),
+      techNotes: techNotes.slice(0, 3)
     };
   }
 
@@ -186,5 +249,5 @@
     return enemyCount * grade * 10;
   }
 
-  return { calculate, matchup, combinations, gradeValue };
+  return { calculate, matchup, directMatchup, evaluateExposure, scorePackage, combinations, gradeValue };
 });
