@@ -6,7 +6,18 @@
     Arclight: [m("Marksman", "S", "射程外からsingle-target"), m("Stormcaller", "A", "後衛砲撃"), m("Phoenix", "A", "Airから高単発"), m("Rhino", "A", "接近後の高HP圧力", "Rhinoがscreenを越えて接近できる場合")],
     Crawler: [m("Arclight", "S", "安価なsplash clear"), m("Fire Badger", "S", "継続fire clear"), m("Wraith", "A", "Air splash"), m("Vulcan", "A", "大量chaff処理"), m("Typhoon", "A", "高密度clear")],
     "Death Knell": [m("Crawler", "S", "多数bodyでbeamを飽和"), m("Melting Point", "A", "Titanへのramp damage"), m("Stormcaller", "A", "長射程とEMP圧"), m("Wasp", "A", "Air chaffでtargetを散らす")],
-    Fang: [m("Mustang", "S", "多段clearとAA"), m("Vulcan", "S", "広範囲clear"), m("Fire Badger", "A", "Shield後も継続fire"), m("Stormcaller", "A", "後衛splash"), m("Typhoon", "A", "継続splash")],
+    Fang: [
+      m("Hound", "S", "低コストのanti-swarm pack"),
+      m("Mustang", "S", "多段clearとAA"),
+      m("Stormcaller", "S", "後衛splash"),
+      m("Fire Badger", "S", "Shield後も継続fire"),
+      m("Typhoon", "S", "継続splash"),
+      m("Wraith", "S", "Airから複数砲でclear"),
+      m("Vulcan", "S", "広範囲clear"),
+      m("Arclight", "A", "安価なsplash clear", "Portable Shield取得前、またはShieldを剥がせる場合"),
+      m("Tarantula", "A", "耐久とsplashでpackを処理"),
+      m("Scorpion", "A", "密集したpackへ高火力splash")
+    ],
     Farseer: [m("Rhino", "S", "高速接近", "Rhinoが射程差を潰せる場合"), m("Fortress", "A", "硬いfrontで射撃時間を奪う"), m("War Factory", "A", "耐久と圧力"), m("Stormcaller", "A", "射程外砲撃")],
     "Fire Badger": [m("Sabertooth", "S", "硬い高単発front"), m("Marksman", "A", "射程外single-target"), m("Phoenix", "A", "Airから高単発"), m("Fortress", "A", "耐久でfireを受ける")],
     Fortress: [m("Melting Point", "S", "代表的anti-giant"), m("Mountain", "A", "Titan級正面性能"), m("Abyss", "A", "Titan beam"), m("Stormcaller", "A", "Barrierを遠距離で剥がす")],
@@ -39,4 +50,22 @@
 
   root.MECH_DATA = root.MECH_DATA || {};
   root.MECH_DATA.matchups = matchups;
+  root.MECH_DATA.matchupAudit = {
+    reviewedAt: "2026-08-30",
+    assumptions: "no-tech / same level / neutral positioning",
+    companionVersion: "Season 8 / Data 2026-07",
+    livePatch: "1.11.1.3",
+    sources: [
+      "https://mechabellum-companion.netlify.app/",
+      "https://mechabellum.wiki.gg/",
+      "https://wiki.mbxmas.com/units/",
+      "https://store.steampowered.com/news/app/669330"
+    ],
+    reviewedUnits: Object.keys(matchups).sort((a, b) => a.localeCompare(b)),
+    focusChecks: {
+      Fang: "Companionの10候補（S×7 / A×3）をbaselineへ反映",
+      Phoenix: "air/single-target適性のある明示的matchupだけを維持。汎用role候補はdirect gradeより下位",
+      Mustang: "Fang/Phoenix/Waspへの明示的回答だけを維持。support違いはcore signatureで重複排除"
+    }
+  };
 })(typeof globalThis !== "undefined" ? globalThis : window);

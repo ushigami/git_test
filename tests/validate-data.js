@@ -53,6 +53,18 @@ for (const [enemy, entries] of Object.entries(data.matchups)) {
   });
 }
 
+assert(data.matchupAudit, "matchup audit metadata missing");
+assert.strictEqual(data.matchupAudit.reviewedUnits.length, 33, "baseline audit must cover all 33 units");
+assert.deepStrictEqual(data.matchupAudit.reviewedUnits, names.slice().sort(), "baseline audit unit list drifted");
+assert.strictEqual(data.matchupAudit.sources.length, 4, "baseline audit needs Companion, both wikis, and official patch source");
+const fangBaseline = new Map(data.matchups.Fang.map((entry) => [entry.unit, entry.grade]));
+(["Hound", "Mustang", "Stormcaller", "Fire Badger", "Typhoon", "Wraith", "Vulcan"]).forEach((name) => {
+  assert.strictEqual(fangBaseline.get(name), "S", `Fang baseline missing S counter ${name}`);
+});
+(["Arclight", "Tarantula", "Scorpion"]).forEach((name) => {
+  assert.strictEqual(fangBaseline.get(name), "A", `Fang baseline missing A counter ${name}`);
+});
+
 for (const [name, entries] of Object.entries(data.techExceptions)) {
   assert(known.has(name), `tech exceptions reference unknown unit ${name}`);
   const techIds = new Set();

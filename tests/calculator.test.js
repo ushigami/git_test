@@ -23,6 +23,41 @@ assert(calculator.economyPenalty(["Crawler"]) < calculator.economyPenalty(["Arcl
 assert.strictEqual(calculator.scorePackage(["Crawler", "Melting Point"], ["Fortress"], []).core, "Melting Point", "Crawler must not replace a real composition core");
 assert(!calculator.calculate(["Marksman"], ["Crawler"], { limit: 10 }).some((result) => result.package.includes("Crawler")), "owned Crawler must never be re-added");
 
+// Single-enemy results must expose distinct counter concepts. Screening-only
+// Crawler variants belong in DETAILS, while a direct Crawler counter remains.
+const fangBaseline = new Map(data.matchups.Fang.map((entry) => [entry.unit, entry.grade]));
+const fangOwnBaseline = new Map([["Fang", calculator.bestOwnCoverage("Fang", [])]]);
+const fangPool = calculator.candidatePool(["Fang"], new Set(), fangOwnBaseline);
+(["Hound", "Mustang", "Stormcaller", "Fire Badger", "Typhoon", "Wraith", "Vulcan", "Arclight"]).forEach((name) => {
+  assert(fangPool.includes(name), `Fang candidate pool missing ${name}`);
+});
+assert.strictEqual(fangBaseline.get("Arclight"), "A", "Fang/Arclight baseline regression");
+const fangResults = calculator.calculate(["Fang"], [], { limit: 10 });
+const fangPackages = fangResults.map((result) => result.package.join("+"));
+assert(fangPackages.includes("Hound") && fangPackages.includes("Mustang") && fangPackages.includes("Fire Badger"), "Fang top results need diverse direct counters");
+assert(!fangPackages.some((name) => name === "Mustang+Crawler" || name === "Crawler+Mustang"), "Mustang support-Crawler duplicate leaked into RESULT");
+assert(!fangPackages.some((name) => name === "Vulcan+Crawler" || name === "Crawler+Vulcan"), "Vulcan support-Crawler duplicate leaked into RESULT");
+assert.strictEqual(new Set(fangResults.map((result) => calculator.coreSignature(result, ["Fang"]))).size, fangResults.length, "single enemy core signatures must be unique");
+const marksmanNoOwn = calculator.calculate(["Marksman"], [], { limit: 10 });
+assert(marksmanNoOwn.some((result) => result.package.length === 1 && result.package[0] === "Crawler"), "direct Crawler counter must be preserved");
+const fangFortressOwn = calculator.calculate(["Fang", "Fortress"], ["Crawler", "Arclight"], { limit: 10 });
+assert.deepStrictEqual(fangFortressOwn[0].package, ["Melting Point"], "Own Arclight should keep Fang duty while Melting Point answers Fortress");
+assert.strictEqual(fangFortressOwn[0].assignments.find((item) => item.enemy === "Fang").answer, "OWN Arclight", "Own Arclight Fang coverage must be reused");
+assert.strictEqual(fangFortressOwn[0].assignments.find((item) => item.enemy === "Fortress").answer, "Melting Point", "Fortress needs the direct S answer");
+for (const enemy of ["Phoenix", "Wasp"]) {
+  const results = calculator.calculate([enemy], [], { limit: 5 });
+  assert.strictEqual(new Set(results.map((result) => calculator.coreSignature(result, [enemy]))).size, results.length, `${enemy} results repeated one core concept`);
+  assert(results.filter((result) => result.package.includes("Phoenix")).length <= 1, `${enemy} results over-promoted Phoenix variants`);
+  assert(results.filter((result) => result.package.includes("Mustang")).length <= 1, `${enemy} results over-promoted Mustang variants`);
+}
+for (const enemy of data.units.map((item) => item.name)) {
+  const baseline = new Map([[enemy, calculator.bestOwnCoverage(enemy, [])]]);
+  const pool = calculator.candidatePool([enemy], new Set(), baseline);
+  data.matchups[enemy].forEach((entry) => assert(pool.includes(entry.unit), `${enemy} candidate pool omitted direct counter ${entry.unit}`));
+  const results = calculator.calculate([enemy], [], { limit: 5 });
+  assert.strictEqual(new Set(results.map((result) => calculator.coreSignature(result, [enemy]))).size, results.length, `${enemy} top results repeated a core concept`);
+}
+
 // Every live unit carries validated baseline economy data.
 assert.strictEqual(data.units.length, 33, "economy coverage requires all 33 units");
 data.units.forEach((unit) => {

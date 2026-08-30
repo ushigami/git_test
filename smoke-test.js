@@ -7,7 +7,7 @@ for (const file of ["data0.js", "data1.js", "data2.js", "data3.js"]) {
 if (!Array.isArray(GUIDE_DATA) || GUIDE_DATA.length < 15) throw new Error("existing GUIDE_DATA missing/too small");
 
 const expected = {
-  "index.html": ["COUNTER", "enemy-grid", "own-panel", "clear-all", "results", "data/units.js?v=20260830d", "calculator.js?v=20260830d"],
+  "index.html": ["COUNTER", "enemy-grid", "own-panel", "clear-all", "results", "data/units.js?v=20260830d", "calculator.js?v=20260830e"],
   "units.html": ["UNITS", "unit-list", "data/recommended-techs.js?v=20260830a", "units-page.js?v=20260830c"],
   "comps.html": ["COMPS", "comp-list", "data0.js?v=20260830b", "comps-page.js?v=20260830b"]
 };
@@ -26,4 +26,4 @@ const workflow = fs.readFileSync(".github/workflows/pages.yml", "utf8");
 for (const command of ["node tests/validate-data.js", "node tests/calculator.test.js", "node tests/ui-contract.test.js", "node tests/units-page.test.js", "node smoke-test.js"]) {
   if (!workflow.includes(command)) throw new Error(`workflow missing ${command}`);
 }
-console.log(`PASS pages=3 comps=${GUIDE_DATA.length} noImages=true noQuantity=true calculatorCacheBust=20260830d`);
+console.log(`PASS pages=3 comps=${GUIDE_DATA.length} noImages=true noQuantity=true calculatorCacheBust=20260830e`);

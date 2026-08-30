@@ -11,6 +11,10 @@
   const matchupIndex = new Map(Object.entries(data.matchups || {}).map(([enemy, entries]) => [
     enemy, new Map(entries.map((entry) => [entry.unit, entry]))
   ]));
+  const ownCoverageCache = new Map();
+  const roleSetCache = new Map();
+  const roleGroupsCache = new Map();
+  const scorePackageCache = new Map();
   const unitByName = () => byName;
 
   // matchups[target] contains the units that counter that target. Keeping the
@@ -41,11 +45,19 @@
   }
 
   function bestOwnCoverage(enemy, ownArmy) {
-    if (!ownArmy.length) return { enemy, answer: null, answerUnit: null, source: "none", grade: "D", reason: "Own Armyに回答なし" };
+    const cacheKey = `${enemy}|${ownArmy.slice().sort().join("+")}`;
+    if (ownCoverageCache.has(cacheKey)) return ownCoverageCache.get(cacheKey);
+    if (!ownArmy.length) {
+      const empty = { enemy, answer: null, answerUnit: null, source: "none", grade: "D", reason: "Own Armyに回答なし" };
+      ownCoverageCache.set(cacheKey, empty);
+      return empty;
+    }
     const best = ownArmy
       .map((candidate) => ({ candidate, ...existingMatchup(candidate, enemy) }))
       .sort((a, b) => gradeValue[b.grade] - gradeValue[a.grade] || a.candidate.localeCompare(b.candidate))[0];
-    return { enemy, answer: `OWN ${best.candidate}`, answerUnit: best.candidate, source: "own", grade: best.grade, reason: best.reason };
+    const result = { enemy, answer: `OWN ${best.candidate}`, answerUnit: best.candidate, source: "own", grade: best.grade, reason: best.reason };
+    ownCoverageCache.set(cacheKey, result);
+    return result;
   }
 
   function coverageState(grade) {
@@ -54,9 +66,12 @@
   }
 
   function roleSet(names) {
+    const cacheKey = names.slice().sort().join("+");
+    if (roleSetCache.has(cacheKey)) return roleSetCache.get(cacheKey);
     const byName = unitByName();
     const roles = new Set();
     names.forEach((name) => (byName.get(name)?.roles || []).forEach((role) => roles.add(role)));
+    roleSetCache.set(cacheKey, roles);
     return roles;
   }
 
@@ -95,10 +110,36 @@
         Object.values(unit.preferredSupport).flat().forEach((name) => add(name, state === "covered" ? 1 : 7));
         unit.synergies.forEach((item) => add(item.unit, state === "covered" ? 1 : 8));
       });
+
+      // Diversity expansion is intentionally a single-enemy mode. Multi-enemy
+      // boards keep the established coverage search and its weighting.
+      if (enemies.length === 1) {
+        // Reverse-index strategy data as a second source of plausible counters.
+        // Direct matchup rows still receive the dominant weight.
+        (data.units || []).forEach((unit) => {
+          if (unit.goodAgainst.includes(enemy)) add(unit.name, needWeight + 10);
+        });
+
+        (data.strategy?.boardPatterns || [])
+          .filter((pattern) => pattern.name.toLowerCase().includes(enemy.toLowerCase()))
+          .forEach((pattern) => pattern.answers.forEach((name) => add(name, needWeight + 9)));
+
+        const counterRoles = new Set();
+        (byName.get(enemy)?.roles || []).forEach((role) => {
+          if (["chaff", "screen"].includes(role)) counterRoles.add("chaff_clear");
+          if (["tank", "carry"].includes(role)) ["single_target", "anti_giant", "control"].forEach((item) => counterRoles.add(item));
+          if (["artillery", "backline_pressure"].includes(role)) counterRoles.add("backline_pressure");
+        });
+        if (counterRoles.size) {
+          (data.units || []).forEach((unit) => {
+            if (unit.roles.some((role) => counterRoles.has(role))) add(unit.name, needWeight + 3);
+          });
+        }
+      }
     });
     return [...scores]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 14)
+      .slice(0, enemies.length === 1 ? 18 : 14)
       .map(([name]) => name);
   }
 
@@ -166,6 +207,7 @@
   }
 
   function roleGroupsFor(name) {
+    if (roleGroupsCache.has(name)) return roleGroupsCache.get(name);
     const groups = new Set();
     const roles = byName.get(name)?.roles || [];
     roles.forEach((role) => {
@@ -179,6 +221,7 @@
       if (role === "carry") groups.add("carry");
     });
     if (byName.get(name)?.target === "air_ground") groups.add("air_ground_axis");
+    roleGroupsCache.set(name, groups);
     return groups;
   }
 
@@ -251,6 +294,8 @@
   }
 
   function scorePackage(packageUnits, enemies, ownArmy) {
+    const cacheKey = `${packageUnits.slice().sort().join("+")}|${enemies.slice().sort().join("+")}|${ownArmy.slice().sort().join("+")}`;
+    if (scorePackageCache.has(cacheKey)) return scorePackageCache.get(cacheKey);
     const baselineCoverage = enemies.map((enemy) => bestOwnCoverage(enemy, ownArmy));
     const baselineByEnemy = new Map(baselineCoverage.map((item) => [item.enemy, item]));
     const assignments = enemies.map((enemy) => chooseAssignment(enemy, ownArmy, packageUnits));
@@ -322,7 +367,7 @@
       const multiValue = strongDuties + explicitPartners;
       return sum + Math.max(0, 2 - multiValue) * 12;
     }, 0);
-    return {
+    const result = {
       package: packageUnits,
       core: coreName,
       assignments,
@@ -348,6 +393,9 @@
         - adequateReplacementPenalty - exposure.penalty - costPenalty
         - diversityPenalty - titanValuePenalty - simpleCompositionPenalty
     };
+    if (scorePackageCache.size >= 5000) scorePackageCache.clear();
+    scorePackageCache.set(cacheKey, result);
+    return result;
   }
 
   function details(result, enemies, ownArmy) {
@@ -419,11 +467,78 @@
       || a.package.join("+").localeCompare(b.package.join("+"));
   }
 
+  function crawlerIsDirectCore(enemies) {
+    return enemies.some((enemy) => gradeValue[directCounter("Crawler", enemy)?.grade] >= 4);
+  }
+
+  function coreSignature(result, enemies) {
+    if (enemies.length === 1) {
+      if (!result.package.length) return "NO_NEW_UNIT";
+      const enemy = enemies[0];
+      const primary = result.package
+        .map((name) => ({
+          name,
+          grade: gradeValue[directCounter(name, enemy)?.grade || "D"],
+          cost: (byName.get(name)?.cost || 0) + (byName.get(name)?.unlockCost || 0)
+        }))
+        .sort((a, b) => b.grade - a.grade || a.cost - b.cost || a.name.localeCompare(b.name))[0];
+      return primary.name;
+    }
+    const keepCrawler = crawlerIsDirectCore(enemies);
+    const names = [...new Set(result.package.filter((name) => name !== "Crawler" || keepCrawler))].sort();
+    return names.join("+") || "NO_NEW_UNIT";
+  }
+
+  function dedupeCoreResults(results, enemies) {
+    const selected = new Map();
+    results.forEach((result) => {
+      const signature = coreSignature(result, enemies);
+      const current = selected.get(signature);
+      if (!current) {
+        selected.set(signature, result);
+        return;
+      }
+      if (enemies.length === 1 && current.package.length !== result.package.length) {
+        if (result.package.length < current.package.length) selected.set(signature, result);
+        return;
+      }
+      // Crawler used only as screening belongs in DETAILS, not as a second
+      // RESULT variation of the same counter concept.
+      const supportCrawler = (item) => item.package.includes("Crawler") && !crawlerIsDirectCore(enemies);
+      if (supportCrawler(current) !== supportCrawler(result)) {
+        if (!supportCrawler(result)) selected.set(signature, result);
+        return;
+      }
+      if (compareResults(result, current) < 0) selected.set(signature, result);
+    });
+    return [...selected.values()];
+  }
+
+  function singleEnemyCompare(a, b, enemy) {
+    const directGrade = (result) => result.package.reduce((best, name) => {
+      const grade = directCounter(name, enemy)?.grade || "D";
+      return Math.max(best, gradeValue[grade]);
+    }, 0);
+    const effectiveGrade = (result) => result.package.reduce(
+      (best, name) => Math.max(best, gradeValue[matchup(name, enemy).grade]), 0
+    );
+    return directGrade(b) - directGrade(a)
+      || effectiveGrade(b) - effectiveGrade(a)
+      || b.adequateCoverage - a.adequateCoverage
+      || coreTypeCount(a.package) - coreTypeCount(b.package)
+      || a.costPenalty - b.costPenalty
+      || a.exposurePenalty - b.exposurePenalty
+      || b.score - a.score
+      || a.package.join("+").localeCompare(b.package.join("+"));
+  }
+
   function explorePackages(candidates, enemies, ownArmy) {
     const empty = scorePackage([], enemies, ownArmy);
     const ranked = [empty];
     let frontier = [{ packageUnits: [], lastIndex: -1, result: empty }];
-    const maxPackageSize = Math.min(candidates.length, ownArmy.includes("Crawler") ? 5 : 6);
+    const maxPackageSize = enemies.length === 1
+      ? 1
+      : Math.min(candidates.length, ownArmy.includes("Crawler") ? 5 : 6);
     const beamWidth = 20;
 
     for (let depth = 1; depth <= maxPackageSize && frontier.length; depth += 1) {
@@ -455,10 +570,19 @@
     const ownSet = new Set(ownArmy);
     const baseline = new Map(enemies.map((enemy) => [enemy, bestOwnCoverage(enemy, ownArmy)]));
     const candidates = candidatePool(enemies, ownSet, baseline);
-    const ranked = explorePackages(candidates, enemies, ownArmy)
-      .sort(compareResults)
-      .slice(0, limit)
-      .map((result, index) => ({
+    const needsSingleEnemyAnswer = enemies.length === 1 && gradeValue[baseline.get(enemies[0])?.grade || "D"] < 4;
+    const comparator = needsSingleEnemyAnswer
+      ? (a, b) => singleEnemyCompare(a, b, enemies[0])
+      : compareResults;
+    const sorted = dedupeCoreResults(explorePackages(candidates, enemies, ownArmy), enemies).sort(comparator);
+    const selected = sorted.slice(0, limit);
+    // Complex boards keep one qualifying fifth-core alternative visible. This
+    // preserves the established multi-enemy search breadth after de-duplication.
+    if (enemies.length >= 5 && !selected.some((result) => result.totalCoreCount === 5)) {
+      const fiveCoreAlternative = sorted.find((result) => result.totalCoreCount === 5);
+      if (fiveCoreAlternative && selected.length) selected[selected.length - 1] = fiveCoreAlternative;
+    }
+    const ranked = selected.map((result, index) => ({
         ...result,
         label: index === 0 ? "RECOMMENDED" : (result.adequateCoverage === enemies.length ? "GOOD" : "CONDITIONAL"),
         details: details(result, enemies, ownArmy)
@@ -470,6 +594,7 @@
     calculate, matchup, existingMatchup, bestOwnCoverage, chooseAssignment,
     directCounter, directMatchup, evaluateExposure, scorePackage, combinations,
     coreTypeCount, isChaffSlot, marginalThreshold, economyPenalty,
-    coreDiversityPenalty, explorePackages, gradeValue
+    coreDiversityPenalty, explorePackages, candidatePool, coreSignature,
+    dedupeCoreResults, singleEnemyCompare, gradeValue
   };
 });
