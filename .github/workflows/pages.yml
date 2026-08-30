@@ -31,6 +31,8 @@ jobs:
         run: node tests/ui-contract.test.js
       - name: Test unit tech setup rendering
         run: node tests/units-page.test.js
+      - name: Test expanded comp guide and formations
+        run: node tests/comps-page.test.js
       - name: Smoke test pages
         run: node smoke-test.js
       - name: Setup Pages
