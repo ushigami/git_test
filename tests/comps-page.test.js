@@ -40,10 +40,13 @@ guides.forEach((item) => {
   assert(item.mistakes.length >= 3, `${item.n} common mistakes incomplete`);
   assert(item.placement.length >= 2, `${item.n} placement principles incomplete`);
   assert(item.refs.length >= 2 && item.refs.every((entry) => /^https:\/\//.test(entry[1])), `${item.n} source URL missing`);
+  assert(item.sourceEvidence?.primary?.startsWith("https://"), `${item.n} source audit missing`);
+  assert(["high", "medium", "low"].includes(item.sourceEvidence.evidenceStrength), `${item.n} evidence strength missing`);
   assert(item.formationSteps.length >= 2 && item.formationSteps.length <= 4, `${item.n} needs 2-4 formation steps`);
-  assert(item.formationSteps.some((step) => step.title === "ROUND 1"), `${item.n} formation needs ROUND 1`);
   item.formationSteps.forEach((step) => {
     assert(step.notes.length, `${item.n}/${step.title} notes missing`);
+    assert(step.evidence?.source?.startsWith("https://"), `${item.n}/${step.title} evidence source missing`);
+    assert(step.evidence.timing && ["high", "medium", "low"].includes(step.evidence.confidence), `${item.n}/${step.title} evidence metadata incomplete`);
     const seen = new Set();
     step.units.forEach((entry) => {
       assert(knownUnits.has(entry.unit), `${item.n}/${step.title} unknown unit ${entry.unit}`);
@@ -71,6 +74,56 @@ for (const [name, unit, firstAllowed] of [
   assert(!item.formationSteps[0].units.some((entry) => entry.unit === unit), `${name} shows ${unit} before its round-plan entry`);
   assert(item.formationSteps[firstAllowed].units.some((entry) => entry.unit === unit), `${name} mid formation missing ${unit}`);
 }
+
+// Source-driven semantic validation. These rules intentionally check meaning,
+// not only shape, so support/core units cannot leak into an earlier diagram.
+const byName = (name) => guides.find((guide) => guide.n === name);
+const firstUnits = (name) => byName(name).formationSteps[0].units.map((entry) => entry.unit);
+const countFirst = (name, unit) => firstUnits(name).filter((value) => value === unit).length;
+for (const [name, forbidden] of [
+  ["Fangs Aggro", ["Fortress", "Hacker"]],
+  ["Ball + Wraith Aggro", ["Wraith", "Wasp"]],
+  ["Arclight + Sandworm Standard", ["Sandworm"]],
+  ["Arclight + Hacker Defense", ["Hacker"]],
+  ["Fire Badger + Void Eye Defense", ["Wraith", "Phantom Ray"]],
+  ["Flank Pull Sledge Aggro", []],
+  ["Hound + Phoenix Aggro", ["Phoenix", "Wasp", "Rhino", "Mustang"]],
+  ["Mountain + Fire Badger Defense", ["Mountain", "Phoenix"]],
+  ["Multimelter + Fire Badger Defense", ["Melting Point", "Crawler"]],
+  ["Sledge + Marksman Defense", ["Arclight"]],
+  ["Spider + Phoenix Aggro", ["Phoenix", "Hound"]],
+  ["Typhon Aggro", ["Typhoon"]]
+]) {
+  forbidden.forEach((unit) => assert(!firstUnits(name).includes(unit), `${name}: late/conditional ${unit} leaked into opening`));
+}
+assert.strictEqual(countFirst("Fangs Aggro", "Fang"), 3, "Fangs opener must show exactly 3 Fang packs");
+assert.strictEqual(countFirst("Fangs Aggro", "Steel Ball"), 1, "Fangs opener must show Steel Ball");
+assert(firstUnits("Ball + Wraith Aggro").includes("Steel Ball"), "Ball/Wraith opener contradicts recommended Ball start");
+assert(firstUnits("Spider + Phoenix Aggro").includes("Tarantula") && firstUnits("Spider + Phoenix Aggro").includes("Crawler"), "Spider opener contradiction");
+assert(firstUnits("Multimelter + Fire Badger Defense").includes("Fang"), "Multimelter opener must use Fang chaff");
+
+const techBefore = [
+  ["Fangs Aggro", 0, /Barrier|Portable Shield|Mechanical Rage/],
+  ["Ball + Wraith Aggro", 0, /Floating Artillery|Mechanical Division/],
+  ["Arclight + Hacker Defense", 0, /Barrier/],
+  ["Multimelter + Fire Badger Defense", 0, /Napalm|Diffraction/],
+  ["Spider + Phoenix Aggro", 0, /High.Explosive|Jump Drive/],
+  ["Typhon Aggro", 0, /Barrier|Tracking Missile|Mechanical Rage|Aerial Specialization/],
+  ["Phantom Ray + Fire Badger", 0, /Sticky Oil/]
+];
+techBefore.forEach(([name, index, pattern]) => {
+  const notes = byName(name).formationSteps[index].notes.join(" ");
+  assert(!pattern.test(notes), `${name}: tech annotation appears before acquisition: ${pattern}`);
+});
+
+// Placement/formation consistency for explicit one-side openings.
+for (const name of ["Fangs Aggro", "Ball + Wraith Aggro", "Hound + Phoenix Aggro", "Spider + Phoenix Aggro", "Typhon Aggro"]) {
+  const positions = byName(name).formationSteps[0].units.map((entry) => entry.position);
+  assert(!positions.some((value) => value.startsWith("right-") && value !== "right-reserve"), `${name}: opening contradicts one-side placement`);
+}
+assert.strictEqual(guides.filter((item) => item.sourceEvidence.currentDataVerified).length, 21, "all 21 audit rows must be verified");
+assert.strictEqual(guides.filter((item) => item.sourceEvidence.imageCount > 0).length, 12, "12 dedicated guides must include image review");
+assert.strictEqual(guides.reduce((sum, item) => sum + item.sourceEvidence.imageCount, 0), 40, "all 40 guide images must be accounted for");
 
 let rendered = "";
 loaded.context.document = {

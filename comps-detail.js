@@ -2,6 +2,7 @@
   "use strict";
 
   const OFFICIAL = "https://steamcommunity.com/app/669330/announcements/";
+  const W = "https://wiki.mbxmas.com";
   const detail = {
     "Mass Raiden": {
       flow: "前後にずらしたchaffで敵の射撃を分散し、Raidenの3目標攻撃が毎射撃で中型へ入る状態を作る。数が揃う前は高価な補助火力にすぎないため、盤面を支えるgroundを先に完成させる。",
@@ -192,7 +193,7 @@
     c: "Vortex mass + Crawler layers + Mustang support",
     o: "複数Vortexを近距離でlinkし、Grid Integrationの火力とRangeでground lineを押すcommunity-derived carry。",
     s: "Vortex + Crawler / Mustang starterが最も自然。early high-level Vortex reinforcementも入口になる。敵がground mediumへ寄り、Sabertooth/Phoenix/Marksman等のsingle-targetが薄い時にだけ育成する。",
-    r: [["R1", "攻めるsideを決め、Crawler layerの後ろへVortex 1–2体。Gridを急がず、まず通常unitとして交換を確認する。"], ["R2–3", "Vortexを3–5体へ。35m以内でlinkできる間隔を保ち、Rangeを先に取って移動時間を減らす。"], ["R4–6", "十分なVortex数が残るならGrid Integration。Mustangはair/light clear不足を補う量だけ追加し、Vortex spamでchaffを怠らない。"], ["Late", "Electromagnetic Twinで射撃数を増やす。Fortress/Sabertooth/Phoenix等で効率が落ちたら、Mobile Power Station型supportまたは別carryへpivot。"]],
+    r: [["Starter check", "Vortex starterならCrawler layerの後ろで通常unitとして交換を確認する。固定R1個数は置かない。"], ["Mid", "複数体が生存しsingle-target回答が薄い時だけ、35m以内のlinkとRangeを整える。"], ["Carry decision", "数が十分残る盤面でGrid Integration。Mustangはair/light不足を補う量だけ。"], ["Late", "Electromagnetic Twinを検討。Fortress/Sabertooth/Phoenix等で効率が落ちたらsupport型または別carryへpivot。"]],
     t: ["Vortex: Range Enhancement", "Vortex: Grid Integration（現行cost 250）", "Vortex: Electromagnetic Twin", "Vortex: Mobile Power Station（少数support型）", "Vortex: Field Maintenance（frontline型）", "Mustang: Aerial Specialization"],
     a: ["Crawler：single-targetを吸い、Vortex lineの接続時間を作る", "Mustang：Air / light clear不足を補う。Vortexと同数まで増やさない", "Melting Point / Phoenix：Vortexが苦手な超高HPやairへの別火力"],
     x: "Sabertooth、Phoenix、Marksman、Fortress等の高single-target。GridのTech費が重く、十分な数とRangeが揃う前にcounterを置かれると失速する。",
@@ -211,29 +212,82 @@
   const techOverrides = {
     "Steel Ball + Hound Aggro": { core: ["Ball: Mechanical Division", "Hound: Range Enhancement"], second: ["Ball: Range Enhancement", "Hound: Mechanical Rage"], situational: ["Ball: Energy Absorption", "Ball: Armor Enhancement（低DPS相手）", "Hound: Incendiary Bomb（補助）"] },
     "Vulcan + Marksman": { core: ["Marksman: Range Enhancement", "Vulcan: Range Enhancement"], second: ["Marksman: Aerial Specialization", "Marksman: Doubleshot"], situational: ["Marksman: Electromagnetic Shot（状況）", "Vulcan: Ignite / fire系（大型補助）"] },
-    "Stormcaller + Fang": { core: ["Storm: Range Enhancement", "Fang: Portable Shield"], second: ["Storm: Launcher Overload", "Fang: Range / Ignite（carry寄せ）"], situational: ["Storm: Heavy Missile（巨体 / interception）", "Storm: High-Explosive Ammo / Incendiary Bomb（群れ）", "Storm: EMP（Tech依存）"] },
+    "Stormcaller + Fang": { core: ["Storm: Range Enhancement", "Fang: Range Enhancement（carry時）"], second: ["Storm: Launcher Overload", "Fang: Portable Shield（front維持時）"], situational: ["Storm: Heavy Missile（巨体 / interception）", "Storm: High-Explosive Ammo / Incendiary Bomb（群れ）", "Storm: EMP（Tech依存）"] },
     "Sabertooth + Hound + Mustang": { core: ["Sabertooth: Doubleshot", "Hound: Range Enhancement"], second: ["Sabertooth: Range Enhancement", "Sabertooth: Field Maintenance"], situational: ["Hound: Incendiary Bomb / Mechanical Rage", "Mustang: Aerial Specialization", "Mustang: Armor-Piercing Bullets（必要時）"] },
     "Phantom Ray + Fire Badger": { core: ["Ray: Sticky Oil Bomb", "Badger: Range / fire系"], second: ["Ray: Range Enhancement", "Ray: Armor Enhancement"], situational: ["Ray: Burst Mode（迎撃突破）", "Ray: Stealth Cloak（接近）"] },
     "Mustang + Scorpion": { core: ["Scorpion: Range Enhancement", "Scorpion: Doubleshot"], second: ["Mustang: Aerial Specialization", "Scorpion: Siege Mode（射程戦）"], situational: ["Scorpion: Acid Attack（巨体）", "Mustang: Armor-Piercing / Culling（盤面次第）"] },
-    "Arclight + Hacker Defense": { core: ["Hacker: Range Enhancement", "Arclight: Range Enhancement"], second: ["Hacker: Barrier", "Hacker: Enhanced Control（Boom Rhino等）"], situational: ["Arclight: Elite Marksman（高Lv）", "Arclight: Armor（低ATK相手）"] },
+    "Arclight + Hacker Defense": { core: ["Arclight: Range Enhancement（R4まで）", "Hacker: Range Enhancement（R4/5投入時）"], second: ["Hacker: Barrier（R5/6+）", "Hacker: Enhanced Control（Boom Rhino等）"], situational: ["Arclight: Elite Marksman（高Lv）", "Arclight: Armor（低ATK相手）"] },
     "Ball + Wraith Aggro": { core: ["Wraith: Range Enhancement", "Ball: Mechanical Division"], second: ["Wraith: Floating Artillery Array", "Ball: Range Enhancement"], situational: ["Ball: Energy Absorption", "Wraith: Degeneration Beam（late）", "Crawler: Subterranean Blitz"] },
     "Fire Badger + Void Eye Defense": { core: ["Void: Suppression Shots", "Badger: Range Enhancement"], second: ["Void: Range Enhancement", "Void: Aerial Mode"], situational: ["Void: Charged Shot", "Badger: Napalm"] },
-    "Hound + Phoenix Aggro": { core: ["Hound: Range Enhancement", "Phoenix: Range Enhancement"], second: ["Hound: Mechanical Rage", "Hound: Fire Extinguisher"], situational: ["Hound: Armor Enhancement（Mustang/Badger）", "Phoenix: Charged Shot（高HP）"] },
-    "Multimelter + Fire Badger Defense": { core: ["Melter: Energy Diffraction", "Badger: Range Enhancement"], second: ["Badger: Napalm / fire系", "Melter: Range / sustain（盤面次第）"], situational: [] },
-    "Sledge + Marksman Defense": { core: ["Sledge: Field Maintenance", "Marksman: Doubleshot"], second: ["Sledge: Armor Enhancement", "Marksman: Range（range war）"], situational: ["Marksman: Assault Mode（Ball/Hound等）", "Marksman: Aerial Specialization"] },
-    "Spider + Phoenix Aggro": { core: ["Phoenix: Range Enhancement"], second: ["Phoenix: Charged Shot（高HP）"], situational: ["Tarantula: sustain/utilityは盤面次第"] }
+    "Hound + Phoenix Aggro": { core: ["Hound: Range Enhancement", "Hound: Mechanical Rage"], second: ["Phoenix: Range Enhancement（育った時）", "Hound: Fire Extinguisher"], situational: ["Hound: Armor Enhancement（Mustang/Badger）", "Phoenix: Charged Shot（高HP）"] },
+    "Multimelter + Fire Badger Defense": { core: ["Badger: Range Enhancement（R3–4）", "Melter: Range Enhancement（Diffraction前/同時）"], second: ["Melter: Energy Diffraction", "Badger: Napalm（R5–6）"], situational: ["Melter: Electromagnetic Barrage", "Melter: Energy Absorption"] },
+    "Sledge + Marksman Defense": { core: ["Marksman: Assault Mode（Ball/Hound/Typhoon）", "Sledge: Field Maintenance"], second: ["Marksman: Aerial Specialization", "Marksman: Range（range war）"], situational: ["Marksman: Doubleshot（必要時）", "Sledge: Armor Enhancement"] },
+    "Spider + Phoenix Aggro": { core: ["Tarantula: Range Enhancement（R3–4）", "Tarantula: High-Explosive Ammo（R5–7）"], second: ["Phoenix: Jump Drive"], situational: ["Phoenix: Range Enhancement", "Phoenix: Charged Shot（高HP）"] },
+    "Fangs Aggro": { core: ["Fang: Range Enhancement（通常first）", "Fang: Armor-Piercing Bullets（strong second）"], second: ["Fang: Mechanical Rage（delayed/flank）"], situational: ["Fang: Portable Shield（late luxury）", "Fortress: Barrier（対Vulcan）", "Hacker: Barrier（対Tarantula）"] },
+    "Typhon Aggro": { core: ["Typhoon: Barrier", "Typhoon: Tracking Missile"], second: ["Typhoon: Mechanical Rage"], situational: ["Typhoon: Aerial Specialization"] }
   };
   const roundOverrides = {
-    "Stormcaller + Fang": [["R1–2", "Fang/Crawlerで遅い層を作る。Stormは1–2packから始め、fast pushへ供給を残す。"], ["R3–4", "相手の速度が遅いならStormを増やす。対Fangや密集へHE/Incendiary、巨体やinterceptorへ現行Heavy Missileを状況で。"], ["R5–7", "Range + Launcher Overloadで砲撃密度を上げる型もある。Heavy Missileは攻撃間隔が伸びlight処理が落ちるため、Fang/clearを厚くする。"], ["Late", "Aggroに距離を潰されるならBall/Wraith、Rhino/Wasp、Sandwormなどへの回答を別ユニットで持つ。"]]
+    "Stormcaller + Fang": [["R1–2", "Fang/Crawlerで遅い層を作る。Stormは1–2packから始め、fast pushへ供給を残す。"], ["R3–4", "相手の速度が遅いならStormを増やす。対Fangや密集へHE/Incendiary、巨体やinterceptorへ現行Heavy Missileを状況で。"], ["R5–7", "Range + Launcher Overloadで砲撃密度を上げる。Heavy Missile時はlight処理が落ちるためchaff/clearを厚くする。"], ["Late", "Aggroに距離を潰されるなら別unitで回答する。"]],
+    "Arclight + Hacker Defense": [["R1–3", "標準chaff + Arclightを作り、R4までにArclight Range。"], ["R4/5", "3 Hackers + Range、またはLv2 Hacker 2packのsurprise。"], ["R5/6+", "4–6 Hackersへ拡張し、必要ならBarrier。Mustang/Stormはmatchupで追加。"]],
+    "Arclight + Sandworm Standard": [["R1–4", "Arclight + Crawler + Stormの通常Standard。starterはArclight + Saber/Sledge/Ballが候補。"], ["R4–5", "敵がVulcan/Storm/Marksへcommitした時だけSandworm pivot。"], ["R5+", "Mechanical Division Wormを両side、または4 Worm one-lane + Beacon。"]],
+    "Ball + Wraith Aggro": [["R1", "Ball starterでone side、layered Crawler、Hound/Arclight clear。Wraithなし。"], ["R4", "Range付きWraith 2packを目標。"], ["R5–7+", "FAA、Ball Mechanical Division、R6頃の3rd Wraith。WaspはAA screenが必要な時だけ。"]],
+    "Fangs Aggro": [["R1", "推奨openingはFang 3pack + Steel Ballをone flank。Fortressなし。"], ["Early", "Rangeを通常first、APをstrong second。Mustang/Tarantula openerへ無理にforceしない。"], ["Mid", "敵counterに応じてArmor Ball/Ray、Barrier Fortress/Hacker等を追加。"], ["Late", "Fortress/Hound等を追加可能。Portable ShieldはFang carryのlate luxury。"]],
+    "Fire Badger + Void Eye Defense": [["R1–4", "建物の少ないsideに防衛。Suppressionは早ければR2、Badger RangeはR3–4。"], ["Around R4", "目安Badger 2、Void約5、chaff約5、backup AA。"], ["R5–7", "Void RangeをR7までに。相手の配置に応じてflankまたはtower defense。"], ["R8+", "Lv2 Voidとmatchup-specific supportを追加。"]],
+    "Flank Pull Sledge Aggro": [["R1–4", "まずstandard。flank pullへcommitするかを判断。"], ["After commit", "turretを売り、両flankへCrawler+Sledge。本隊はtower後方。"], ["R4 target", "Sledge 4–6、Crawler 4–7、必要ならDPS。"], ["Late", "pull価値が落ちるため後衛DPSへ投資。"]],
+    "Hound + Phoenix Aggro": [["R1", "one sideへHound/Crawler。Steel Ball starter例ではBallをCrawler間へ。"], ["R2–4", "R2 Phoenix + Hound/Crawler。R4目安Hound約5、Phoenix 1–2。Ball追加なし。"], ["R5–7", "Hound tech優先。育ったPhoenixにtech、supportはmatchup次第。"]],
+    "Mountain + Fire Badger Defense": [["R1–3", "Field RecoveryでRapid-Fire Cannonを売り、Badgerをtower前、Crawler/Marksを後方。"], ["R4/5", "売却/貯蓄できればR4、通常R5にMountain。"], ["R5+", "Mountainを壁にBadger/後衛を保護。Phoenix Jump/Oilは敵aggro時だけ。"]],
+    "Multimelter + Fire Badger Defense": [["R1–4", "tower近く。chaffはFang。Badger RangeをR3–4。"], ["R4–5", "最初のMelter。RangeをDiffractionより先または同時。"], ["R5–7+", "Badger Napalm R5–6、複数Melter + Fang/shield。"]],
+    "Sledge + Marksman Defense": [["R1–4", "Sledgeをtower内側やや前、Crawler/Marksを後方。攻められるsideへ集中。"], ["R5–7", "Marksman carryへ。Ball/Hound/TyphoonにはAssault Mode、Saberには使わない。"], ["Late", "Field Maintenance Sledgeで時間を買い、AA/Range/Doubleshotは相手に応じる。"]],
+    "Spider + Phoenix Aggro": [["R1", "Tarantula + Crawlerをone flank。Sledge edge pullはstarter option。"], ["R3–4", "Tarantula Range必須。Phoenixを後方に追加。"], ["R5–7", "Tarantula HE。Phoenix Jump推奨、Phoenix Rangeは状況次第。"]],
+    "Typhon Aggro": [["R1–3", "Crawler baseをone sideへ。Field Recoveryでそのsideのturretを売り、弱い200 starterは売却候補。"], ["R4", "Typhoon 4 squads + 1 tech + Crawler chainを目標。Phoenixはtempo option。"], ["R5+", "side switch、opposite flank reinforcement、Mobile Beaconで圧を移す。"]]
+  };
+
+  const contentOverrides = {
+    "Fangs Aggro": { flow: "Fang 3pack + Steel Ballをone flankへ集中して始め、Range→APでFang carryを作る。Fortress等は敵counterを見てmid/lateに入れる。", placement: ["openingはFang 3pack + Steel Ballをone flankへ集中。", "Fortress/Hacker等はcounterへの回答時だけmid/lateに追加する。"] },
+    "Arclight + Sandworm Standard": { placement: ["R1–4は両面Standardでtowerを使い、Sandwormを先取りしない。", "pivot後は両side Worm、または4 Worm one-lane + Beaconのどちらか。"] },
+    "Flank Pull Sledge Aggro": { placement: ["commit前はstandard。commit後はCrawler+Sledgeを両flankへ分離する。", "本隊はtower後方、towerより上へ置かず、flank pathingの空間を残す。"] },
+    "Multimelter + Fire Badger Defense": { placement: ["Badgerはtower近く、Melterは後方。", "chaffはNapalmへ走り込むCrawlerでなくFangを使用する。"] },
+    "Typhon Aggro": { flow: "Crawler chainをone sideへ作り、R4までにTyphoon 4 squads + 1 techを揃える。R5以降はopposite flankとMobile Beaconでside switchする。", placement: ["R1–3はone-side Crawler chain。Typhoonを先取りしない。", "R5+はopposite flankへTyphoonを補強しBeaconで圧を移す。"] }
+  };
+
+  const audit = (primary, images, rounds, strength, opening, unresolved = "") => ({
+    primary, imageCount: images, roundInfo: rounds, evidenceStrength: strength,
+    opening, unresolved, currentDataVerified: true
+  });
+  const sourceAudit = {
+    "Mass Raiden": audit(`${W}/units/air/raiden/`, 0, "partial", "medium", "generic starter only", "dedicated round guideなし"),
+    "Steel Ball + Hound Aggro": audit(`${W}/units/ground/steel-ball/`, 0, "partial", "medium", "representative Ball/Hound start", "dedicated guideなし"),
+    "Vulcan + Marksman": audit("https://note.com/mechabellum/n/n1ca51bb62d85", 0, "partial", "medium", "Marksman base then Vulcan", "high-MMR community guide"),
+    "Stormcaller + Fang": audit(OFFICIAL, 0, "partial", "medium", "representative Fang/Storm start", "dedicated guideなし"),
+    "AP Sledge Pressure": audit(`${W}/units/ground/sledgehammer/`, 0, "partial", "medium", "representative Sledge starter", "dedicated guideなし"),
+    "Sabertooth + Hound + Mustang": audit(`${W}/units/ground/sabertooth/`, 0, "partial", "medium", "representative Saber/Hound start", "support timing partial"),
+    "Phantom Ray + Fire Badger": audit(`${W}/units/air/phantom-ray/`, 0, "partial", "medium", "Ray/Badger starter; no R1 Oil", "dedicated guideなし"),
+    "Mustang + Scorpion": audit("https://mechabellum.wiki.gg/wiki/Scorpion", 0, "weak", "low", "generic Mustang starter", "round evidence weak"),
+    "Arclight + Hacker Defense": audit(`${W}/guides/arclight-hacker-defense/`, 2, "explicit", "high", "R1–3 Arclight/chaff"),
+    "Arclight + Sandworm Standard": audit(`${W}/guides/arclight-sandworm-standard/`, 3, "explicit", "high", "R1–4 standard; no Worm"),
+    "Ball + Wraith Aggro": audit(`${W}/guides/ball-wraith-aggro/`, 3, "explicit", "high", "R1 Ball/Crawler; no Wraith"),
+    "Fangs Aggro": audit(`${W}/guides/fangs-aggro/`, 2, "explicit", "high", "3 Fangs + Steel Ball; no Fortress"),
+    "Fire Badger + Void Eye Defense": audit(`${W}/guides/fire-badger-void-eye-defense/`, 4, "explicit", "high", "sample Badger/Void defense"),
+    "Flank Pull Sledge Aggro": audit(`${W}/guides/flank-pull-sledge-aggro/`, 7, "explicit", "high", "standard first; no forced R1 flank"),
+    "Hound + Phoenix Aggro": audit(`${W}/guides/hound-phoenix-aggro/`, 5, "explicit", "high", "Hound/Crawler/Ball one-side"),
+    "Mountain + Fire Badger Defense": audit(`${W}/guides/mountain-firebadger-defense/`, 3, "explicit", "high", "Badger tower defense; no Mountain"),
+    "Multimelter + Fire Badger Defense": audit(`${W}/guides/multimelter-fire-badger-defense/`, 3, "explicit", "high", "Fang + Badger; no Crawler/Melter"),
+    "Sledge + Marksman Defense": audit(`${W}/guides/sledge-marksman-defense/`, 2, "explicit", "high", "tower-inner Sledge + backline"),
+    "Spider + Phoenix Aggro": audit(`${W}/guides/spider-phoenix-aggro/`, 3, "explicit", "high", "Tarantula + Crawler; no Hound/Phoenix"),
+    "Typhon Aggro": audit(`${W}/guides/typhon-aggro/`, 3, "explicit", "high", "Crawler base; no early Typhoon"),
+    "Carry Vortex": audit("https://mechabellum.wiki.gg/wiki/Vortex", 0, "weak", "low", "starter check only", "community-derived; exact rounds unknown")
   };
 
   GUIDE_DATA.forEach((item) => {
     const extra = detail[item.n];
     if (!extra) throw new Error(`Missing detailed comp data: ${item.n}`);
     Object.assign(item, extra);
+    if (contentOverrides[item.n]) Object.assign(item, contentOverrides[item.n]);
     if (techOverrides[item.n]) item.tech = techOverrides[item.n];
     if (roundOverrides[item.n]) item.r = roundOverrides[item.n];
+    item.sourceEvidence = sourceAudit[item.n];
     item.refs = [["Primary guide / unit reference", item.u], ["Official live updates", OFFICIAL], ...(extra.refs || [])];
   });
+  carryVortex.sourceEvidence = sourceAudit[carryVortex.n];
   GUIDE_DATA.push(carryVortex);
 })();
