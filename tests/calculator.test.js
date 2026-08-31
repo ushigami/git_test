@@ -158,6 +158,46 @@ const tacticalE = calculator.calculate(["Typhoon"], tacticalOwn, { limit: 10 });
 assert.deepStrictEqual(tacticalE[0].package, ["Scorpion"], "Case E Scorpion S counter must remain rank 1");
 assert.strictEqual(tacticalE[0].assignments[0].grade, "S", "Case E direct S grade lost");
 
+// Result-quality follow-up: eight diverse answers, explicit required-Tech
+// markers, owned-Tech axes, and fair native-counter competition.
+const fangPhoenix = calculator.calculate(["Fang", "Phoenix"], tacticalOwn);
+assert.strictEqual(fangPhoenix.length, 8, "default result count must be 8");
+const fangPhoenixWasp = fangPhoenix.find((result) => result.displayPackage.join("+") === "Wasp");
+assert(fangPhoenixWasp, "Fang + Phoenix must keep Wasp as a visible native answer");
+assert(!fangPhoenixWasp.techPackages.some((tech) => tech.unit === "Arclight"), "Wasp answer must not select redundant Arclight AA");
+assert(!fangPhoenixWasp.details.techNotes.some((line) => line.includes("Arclight") && line.includes("Anti-Aircraft")), "redundant Arclight AA leaked into TECH NOTES");
+assert(fangPhoenix.slice(0, 8).some((result) => result.package.includes("Mustang")), "Fang + Phoenix must retain Mustang in top 8");
+
+const steelWasp = calculator.calculate(["Steel Ball", "Wasp"], tacticalOwn);
+const nativeSteelWasp = steelWasp.find((result) => result.package.includes("Scorpion") && result.package.includes("Mustang"));
+const convertedSteelWasp = steelWasp.find((result) => result.package.includes("Scorpion") && result.package.includes("Arclight"));
+assert(nativeSteelWasp && convertedSteelWasp, "Steel Ball + Wasp must compare native Mustang and owned Arclight AA axes");
+assert(steelWasp.indexOf(nativeSteelWasp) <= 2 && steelWasp.indexOf(convertedSteelWasp) <= 2, "native and conversion axes must both rank in top 3");
+assert(convertedSteelWasp.displayPackage.some((name) => name === "OWN Arclight (+AA)"), "owned Tech axis must be labeled as OWN, not a new unit");
+const convertedWaspAssignment = convertedSteelWasp.assignments.find((item) => item.enemy === "Wasp");
+assert(convertedWaspAssignment.requiredTech === "anti-aircraft-ammunition" && convertedWaspAssignment.displayAnswer.includes("(+AA)"), "required AA Tech must be visible on the closed-card assignment");
+assert(steelWasp.slice(0, 4).some((result) => result.package.includes("Typhoon") && result.package.includes("Scorpion")), "Steel Ball + Wasp must keep Typhoon + Scorpion near the top");
+
+const crawlerFang = calculator.calculate(["Crawler", "Fang"], []);
+const signatureCounts = new Map();
+crawlerFang.forEach((result) => {
+  const signature = calculator.primaryAnswerSignature(result);
+  signatureCounts.set(signature, (signatureCounts.get(signature) || 0) + 1);
+});
+assert.strictEqual(crawlerFang.length, 8, "Crawler + Fang must expose eight meaningful results");
+assert(Math.max(...signatureCounts.values()) <= 2, "one primary-answer signature must not occupy more than two results");
+assert(crawlerFang.some((result) => result.package.includes("Vulcan")), "audited Vulcan anti-swarm axis must remain in Crawler + Fang top 8");
+assert(new Set(crawlerFang.map((result) => calculator.primaryAnswerSignature(result))).size >= 6, "Crawler + Fang top 8 needs at least six distinct counter concepts");
+
+const goldenFollowup = calculator.calculate(["Phoenix", "Typhoon"], ["Crawler", "Arclight", "Phoenix"]);
+assert(goldenFollowup[0].package.includes("Fortress") && goldenFollowup[0].techPackages.some((tech) => tech.id === "anti-air-barrage"), "Phoenix + Typhoon golden Fortress AA case regressed");
+assert(goldenFollowup[0].assignments.some((item) => item.displayAnswer === "Fortress (+AA)"), "golden case must mark conditional Fortress coverage on the card");
+
+const noNewFollowup = calculator.calculate(["Phoenix", "Typhoon"], ["Mustang", "Fortress"]);
+assert.deepStrictEqual(noNewFollowup[0].package, [], "covered Phoenix + Typhoon must keep NO NEW UNIT first");
+const hackerFollowup = calculator.calculate(["Sledgehammer", "Sabertooth"], tacticalOwn);
+assert.strictEqual(hackerFollowup[0].package[0], "Hacker", "Hacker regression must remain top-tier");
+
 const fortressNoSupport = calculator.scorePackage(["Fortress"], ["Phoenix", "Typhoon"], []);
 assert(fortressNoSupport.supportBurden > fortressB.supportBurden, "Crawler/Arclight must reduce Fortress support burden");
 assert(fortressB.costPenalty > calculator.economyPenalty(["Fortress"]), "tactical Tech cost must participate in economy");

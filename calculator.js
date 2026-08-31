@@ -148,28 +148,28 @@
   function selectTacticalTechs(packageUnits, enemies, ownArmy) {
     const cacheKey = `${packageUnits.slice().sort().join("+")}|${enemies.slice().sort().join("+")}|${ownArmy.slice().sort().join("+")}`;
     if (tacticalSelectionCache.has(cacheKey)) return tacticalSelectionCache.get(cacheKey);
-    const ownCapabilities = capabilityProfile(ownArmy, []);
     const needs = roleNeeds(enemies);
-    const baseline = new Map(enemies.map((enemy) => [enemy, bestOwnCoverage(enemy, ownArmy)]));
+    const armyUnits = [...new Set([...ownArmy, ...packageUnits])];
     const selected = [];
     [...new Set(packageUnits)].forEach((name) => {
       const candidates = tacticalTechIndex.get(name) || [];
-      const baseCapabilities = capabilityProfile([name], []);
       let best = null;
       candidates.forEach((tech) => {
         if (tech.requiresAny?.length && !tech.requiresAny.some((unit) => ownArmy.includes(unit) || packageUnits.includes(unit))) return;
+        const withTech = [...selected, tech];
         let value = 0;
         enemies.forEach((enemy) => {
           const tags = data.threatProfiles?.[enemy]?.tags || [];
           if (!tech.threatTags?.some((tag) => tags.includes(tag)) && !tech.matchups?.[enemy]) return;
-          const before = gradeValue[baseline.get(enemy)?.grade || "D"];
-          const baselineUnit = gradeValue[matchup(name, enemy, []).grade];
-          const after = gradeValue[tech.matchups?.[enemy] || tech.grade || "B"];
-          if (before < 4) value += Math.max(0, after - baselineUnit) * 5 + (after >= 4 ? 8 : 3);
-          else value += Math.max(0, after - baselineUnit);
+          const before = gradeValue[chooseAssignment(enemy, ownArmy, packageUnits, selected).grade];
+          const after = gradeValue[chooseAssignment(enemy, ownArmy, packageUnits, withTech).grade];
+          const gain = Math.max(0, after - before);
+          if (gain) value += gain * 5 + (before < 4 && after >= 4 ? 8 : 0);
         });
+        const beforeCapabilities = capabilityProfile(armyUnits, selected);
+        const afterCapabilities = capabilityProfile(armyUnits, withTech);
         needs.forEach((need) => {
-          if ((tech.add || []).includes(need.role) && !baseCapabilities.has(need.role) && !ownCapabilities.has(need.role)) value += need.weight * 2;
+          if (!beforeCapabilities.has(need.role) && afterCapabilities.has(need.role)) value += need.weight * 2;
         });
         value += ownArmy.includes(name) ? 3 : 0;
         value -= (tech.cost || 0) / 100 * 1.5;
@@ -212,7 +212,8 @@
       const state = coverageState(baseline.get(enemy)?.grade || "D");
       const needWeight = state === "uncovered" ? 42 : (state === "partial" ? 24 : 2);
       (data.matchups?.[enemy] || []).forEach((entry) => {
-        add(entry.unit, needWeight + gradeValue[entry.grade] * 4);
+        const nativePriority = entry.grade === "S" ? 18 : (entry.grade === "A" ? 8 : 0);
+        add(entry.unit, needWeight + gradeValue[entry.grade] * 4 + nativePriority);
         const unit = byName.get(entry.unit);
         Object.values(unit.preferredSupport).flat().forEach((name) => add(name, state === "covered" ? 1 : 7));
         unit.synergies.forEach((item) => add(item.unit, state === "covered" ? 1 : 8));
@@ -258,7 +259,7 @@
         const tags = data.threatProfiles?.[enemy]?.tags || [];
         return tech.matchups?.[enemy] || tech.threatTags?.some((tag) => tags.includes(tag));
       });
-      if (relevant) add(tech.unit, 30 + (ownSet.has(tech.unit) ? 12 : 0), true);
+      if (relevant) add(tech.unit, 30 + (ownSet.has(tech.unit) ? 25 : 0), true);
     });
     return [...scores]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -551,7 +552,7 @@
     const roleCompression = Math.min(30, axisCompression);
     const structuralSynergyBonus = structuralSynergy(packageUnits, ownArmy, techPackages);
     const supportBurdenPenalty = supportBurden(packageUnits, ownArmy, techPackages);
-    const existingUnitAdvantage = techPackages.filter((item) => ownArmy.includes(item.unit)).length * 18;
+    const existingUnitAdvantage = techPackages.filter((item) => ownArmy.includes(item.unit)).length * 15;
     const inactiveExistingAxisPenalty = packageUnits.filter(
       (name) => ownArmy.includes(name) && !techPackages.some((item) => item.unit === name)
     ).length * 100;
@@ -720,6 +721,67 @@
     return names.join("+") || "NO_NEW_UNIT";
   }
 
+  function requiredTechForAssignment(assignment, techPackages) {
+    if (!assignment.answerUnit) return null;
+    const tech = techForUnit(assignment.answerUnit, techPackages);
+    if (!tech) return null;
+    const withoutTech = techPackages.filter((item) => item !== tech);
+    const baseline = assignment.source === "own"
+      ? existingMatchup(assignment.answerUnit, assignment.enemy, withoutTech)
+      : matchup(assignment.answerUnit, assignment.enemy, withoutTech);
+    return gradeValue[assignment.grade] > gradeValue[baseline.grade] ? tech : null;
+  }
+
+  function primaryAnswerSignature(result) {
+    return result.assignments.map((assignment) => {
+      const tech = requiredTechForAssignment(assignment, result.techPackages);
+      return `${assignment.enemy}=${assignment.answerUnit || "NONE"}${tech ? `+${tech.id}` : ""}`;
+    }).join("|");
+  }
+
+  function hasUniqueNeededSupport(result, ownArmy) {
+    const assigned = new Set(result.assignments.map((item) => item.answerUnit).filter(Boolean));
+    return result.package.some((name) => {
+      if (assigned.has(name)) return false;
+      const otherUnits = [...ownArmy, ...result.package.filter((item) => item !== name)];
+      const otherTechs = result.techPackages.filter((item) => item.unit !== name);
+      const others = capabilityProfile(otherUnits, otherTechs);
+      const axis = capabilityProfile([name], result.techPackages.filter((item) => item.unit === name));
+      return result.roleGapsBefore.some((role) => axis.has(role) && !others.has(role));
+    });
+  }
+
+  function diversifyResults(results, enemies, ownArmy, targetCount) {
+    if (enemies.length < 2) return results;
+    const selected = [];
+    const groups = new Map();
+    results.forEach((result) => {
+      const signature = primaryAnswerSignature(result);
+      const group = groups.get(signature) || [];
+      if (!group.length || (group.length === 1 && (hasUniqueNeededSupport(group[0], ownArmy) || hasUniqueNeededSupport(result, ownArmy)))) {
+        group.push(result);
+        groups.set(signature, group);
+        selected.push(result);
+      }
+    });
+    // If strict unique-role filtering leaves an otherwise useful result slot
+    // empty, allow one alternate per concept while preserving the hard cap of
+    // two identical primary-answer signatures.
+    if (selected.length < targetCount) {
+      results.forEach((result) => {
+        if (selected.length >= targetCount || selected.includes(result)) return;
+        const signature = primaryAnswerSignature(result);
+        const group = groups.get(signature) || [];
+        if (group.length >= 2) return;
+        group.push(result);
+        groups.set(signature, group);
+        selected.push(result);
+      });
+    }
+    const selectedSet = new Set(selected);
+    return results.filter((result) => selectedSet.has(result));
+  }
+
   function dedupeCoreResults(results, enemies) {
     const selected = new Map();
     results.forEach((result) => {
@@ -770,7 +832,7 @@
     const maxPackageSize = enemies.length === 1
       ? 1
       : Math.min(candidates.length, enemies.length === 2 ? 2 : (enemies.length >= 5 ? 4 : 3));
-    const beamWidth = enemies.length <= 2 ? 6 : (enemies.length >= 5 ? 24 : 14);
+    const beamWidth = enemies.length <= 2 ? 8 : (enemies.length >= 5 ? 24 : 14);
 
     for (let depth = 1; depth <= maxPackageSize && frontier.length; depth += 1) {
       const next = [];
@@ -797,7 +859,7 @@
     const enemies = [...new Set(enemySelection || [])].filter((name) => unitByName().has(name));
     const ownArmy = [...new Set(ownSelection || [])].filter((name) => unitByName().has(name));
     if (!enemies.length) return [];
-    const limit = Math.max(1, Math.min(10, options?.limit || 5));
+    const limit = Math.max(1, Math.min(10, options?.limit || 8));
     const calculationKey = `${enemies.slice().sort().join("+")}|${ownArmy.slice().sort().join("+")}|${limit}`;
     if (calculateCache.has(calculationKey)) return calculateCache.get(calculationKey);
     const ownSet = new Set(ownArmy);
@@ -807,7 +869,12 @@
     const comparator = needsSingleEnemyAnswer
       ? (a, b) => singleEnemyCompare(a, b, enemies[0])
       : compareResults;
-    const sorted = dedupeCoreResults(explorePackages(candidates, enemies, ownArmy), enemies).sort(comparator);
+    const sorted = diversifyResults(
+      dedupeCoreResults(explorePackages(candidates, enemies, ownArmy), enemies).sort(comparator),
+      enemies,
+      ownArmy,
+      limit
+    );
     const selected = sorted.slice(0, limit);
     // Complex boards keep one qualifying fifth-core alternative visible. This
     // preserves the established multi-enemy search breadth after de-duplication.
@@ -815,11 +882,25 @@
       const fiveCoreAlternative = sorted.find((result) => result.totalCoreCount === 5);
       if (fiveCoreAlternative && selected.length) selected[selected.length - 1] = fiveCoreAlternative;
     }
-    const ranked = selected.map((result, index) => ({
+    const ranked = selected.map((result, index) => {
+      const assignments = result.assignments.map((assignment) => {
+        const tech = requiredTechForAssignment(assignment, result.techPackages);
+        return { ...assignment, requiredTech: tech?.id || null, displayAnswer: `${assignment.answer}${tech ? ` (+${tech.short || "TECH"})` : ""}` };
+      });
+      const displayPackage = result.package
+        .filter((name) => !ownSet.has(name) || result.techPackages.some((tech) => tech.unit === name))
+        .map((name) => {
+          const tech = result.techPackages.find((item) => item.unit === name);
+          return `${ownSet.has(name) ? "OWN " : ""}${name}${tech ? ` (+${tech.short || "TECH"})` : ""}`;
+        });
+      return {
         ...result,
+        assignments,
+        displayPackage,
         label: index === 0 ? "RECOMMENDED" : (result.adequateCoverage === enemies.length ? "GOOD" : "CONDITIONAL"),
         details: details(result, enemies, ownArmy)
-      }));
+      };
+    });
     if (calculateCache.size >= 256) calculateCache.clear();
     calculateCache.set(calculationKey, ranked);
     return ranked;
@@ -829,7 +910,7 @@
     calculate, matchup, existingMatchup, bestOwnCoverage, chooseAssignment,
     directCounter, directMatchup, evaluateExposure, scorePackage, combinations,
     coreTypeCount, isChaffSlot, marginalThreshold, economyPenalty,
-    coreDiversityPenalty, explorePackages, candidatePool, coreSignature,
+    coreDiversityPenalty, explorePackages, candidatePool, coreSignature, primaryAnswerSignature,
     dedupeCoreResults, singleEnemyCompare, gradeValue, roleNeeds,
     capabilityProfile, selectTacticalTechs, supportBurden, structuralSynergy
   };

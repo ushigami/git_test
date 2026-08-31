@@ -85,6 +85,7 @@ assert(data.tacticalTechs.length >= 12, "audited tactical tech catalog incomplet
 data.tacticalTechs.forEach((tech) => {
   assert(known.has(tech.unit), `${tech.unit}/${tech.name} references unknown unit`);
   assert(tech.id && tech.name && Number.isInteger(tech.cost) && tech.cost >= 0, `${tech.unit}/${tech.name} tactical tech invalid`);
+  assert(tech.short && tech.short.length <= 5, `${tech.unit}/${tech.name} compact card label missing`);
   assert(tech.add.length && tech.source.startsWith("https://"), `${tech.unit}/${tech.name} tactical tech evidence incomplete`);
 });
 const fortressAA = data.tacticalTechs.find((tech) => tech.unit === "Fortress" && tech.id === "anti-air-barrage");

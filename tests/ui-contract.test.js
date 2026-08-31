@@ -23,7 +23,8 @@ for (const token of [
 for (const token of [
   'class="result-top"', 'class="rank"', 'class="package"', 'class="recommendation"',
   'class="assignments"', 'class="assignment"', 'list("ROLE"', 'list("CHAFF"',
-  'list("TANK / FRONTLINE"', 'list("CLEAR / SUPPORT"', "CLOSE DETAILS", "NO NEW UNIT"
+  'list("TANK / FRONTLINE"', 'list("CLEAR / SUPPORT"', "CLOSE DETAILS", "NO NEW UNIT",
+  "result.displayPackage || result.package", "item.displayAnswer || item.answer"
 ]) assert(app.includes(token), `result UI contract missing ${token}`);
 assert(!app.includes('list("WHY"'), "duplicate WHY block must be removed from DETAILS");
 assert(app.includes('details.open = false'), "CLOSE DETAILS must close only its containing details element");

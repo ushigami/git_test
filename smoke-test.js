@@ -8,7 +8,7 @@ if (!Array.isArray(GUIDE_DATA) || GUIDE_DATA.length !== 21) throw new Error("exp
 if (!GUIDE_DATA.some((item) => item.n === "Carry Vortex")) throw new Error("Carry Vortex missing");
 
 const expected = {
-  "index.html": ["COUNTER", "enemy-grid", "own-panel", "clear-all", "results", "data/units.js?v=20260830d", "data/tactics.js?v=20260831a", "calculator.js?v=20260831a"],
+  "index.html": ["COUNTER", "enemy-grid", "own-panel", "clear-all", "results", "data/units.js?v=20260830d", "data/tactics.js?v=20260901a", "calculator.js?v=20260901a", "app.js?v=20260901a"],
   "units.html": ["UNITS", "unit-list", "data/recommended-techs.js?v=20260830a", "units-page.js?v=20260830c"],
   "comps.html": ["COMPS", "comp-list", "data0.js?v=20260830b", "comps-detail.js?v=20260830a", "comps-formations.js?v=20260830a", "comps-page.js?v=20260830c"]
 };
@@ -27,4 +27,4 @@ const workflow = fs.readFileSync(".github/workflows/pages.yml", "utf8");
 for (const command of ["node tests/validate-data.js", "node tests/calculator.test.js", "node tests/ui-contract.test.js", "node tests/units-page.test.js", "node tests/comps-page.test.js", "node smoke-test.js"]) {
   if (!workflow.includes(command)) throw new Error(`workflow missing ${command}`);
 }
-console.log(`PASS pages=3 comps=${GUIDE_DATA.length} noImages=true noQuantity=true calculatorCacheBust=20260831a`);
+console.log(`PASS pages=3 comps=${GUIDE_DATA.length} noImages=true noQuantity=true calculatorCacheBust=20260901a`);
