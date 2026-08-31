@@ -3,7 +3,7 @@ const path = require("path");
 function loadData() {
   delete global.MECH_DATA;
   delete global.MECH_CALCULATOR;
-  ["units.js", "recommended-techs.js", "tech-exceptions.js", "matchups.js", "strategy.js"].forEach((file) => {
+  ["units.js", "recommended-techs.js", "tech-exceptions.js", "matchups.js", "strategy.js", "tactics.js"].forEach((file) => {
     const target = path.resolve(__dirname, "..", "data", file);
     delete require.cache[target];
     require(target);

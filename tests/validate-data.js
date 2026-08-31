@@ -76,4 +76,18 @@ for (const [name, entries] of Object.entries(data.techExceptions)) {
   });
 }
 
-console.log(`PASS data units=${data.units.length} matchupSets=${Object.keys(data.matchups).length} techUnits=${Object.keys(data.techExceptions).length}`);
+assert.strictEqual(Object.keys(data.threatProfiles).length, 33, "threat profiles must cover every live unit");
+assert.strictEqual(Object.keys(data.capabilityProfiles).length, 33, "capability profiles must cover every live unit");
+assert(data.threatProfiles.Phoenix.tags.includes("air") && data.threatProfiles.Phoenix.tags.includes("single_target"), "Phoenix threat profile incomplete");
+assert(data.threatProfiles.Typhoon.tags.includes("medium_pack") && data.threatProfiles.Typhoon.tags.includes("sustained_pressure"), "Typhoon threat profile incomplete");
+assert(data.capabilityProfiles.Fortress.includes("frontline") && data.capabilityProfiles.Fortress.includes("tank"), "Fortress capability profile incomplete");
+assert(data.tacticalTechs.length >= 12, "audited tactical tech catalog incomplete");
+data.tacticalTechs.forEach((tech) => {
+  assert(known.has(tech.unit), `${tech.unit}/${tech.name} references unknown unit`);
+  assert(tech.id && tech.name && Number.isInteger(tech.cost) && tech.cost >= 0, `${tech.unit}/${tech.name} tactical tech invalid`);
+  assert(tech.add.length && tech.source.startsWith("https://"), `${tech.unit}/${tech.name} tactical tech evidence incomplete`);
+});
+const fortressAA = data.tacticalTechs.find((tech) => tech.unit === "Fortress" && tech.id === "anti-air-barrage");
+assert(fortressAA && fortressAA.cost === 200 && fortressAA.grade === "A", "Fortress Anti-Air Barrage audit regression");
+
+console.log(`PASS data units=${data.units.length} matchupSets=${Object.keys(data.matchups).length} techUnits=${Object.keys(data.techExceptions).length} tacticalTechs=${data.tacticalTechs.length}`);

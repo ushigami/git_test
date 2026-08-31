@@ -125,6 +125,46 @@ scenarioA.forEach((result) => {
   assert(result.assignments.every((item) => item.source === "own" || result.package.includes(item.answer)), "assignment must point to Own or package");
 });
 
+// Threat/capability engine regressions A-E.
+const tacticalA = calculator.calculate(["Phoenix", "Typhoon"], [], { limit: 10 });
+assert.notDeepStrictEqual(tacticalA[0].package, ["Marksman"], "Case A must not pin Marksman single to rank 1");
+assert(tacticalA.slice(0, 6).some((result) => result.package.length === 1 && result.package[0] === "Fortress" && result.techPackages.some((tech) => tech.id === "anti-air-barrage")), "Case A top results missing Fortress + Anti-Air Barrage");
+assert(tacticalA.slice(0, 6).some((result) => result.package.includes("Raiden")), "Case A top results missing multi-threat Raiden");
+assert(tacticalA.slice(0, 3).some((result) => result.package.includes("Scorpion") && result.package.includes("Wasp")), "Case A top results missing Scorpion + Wasp");
+
+const tacticalOwn = ["Crawler", "Arclight"];
+const tacticalB = calculator.calculate(["Phoenix", "Typhoon"], tacticalOwn, { limit: 10 });
+const fortressBIndex = tacticalB.findIndex((result) => result.package.length === 1 && result.package[0] === "Fortress" && result.techPackages.some((tech) => tech.id === "anti-air-barrage"));
+const marksmanBIndex = tacticalB.findIndex((result) => result.package.length === 1 && result.package[0] === "Marksman");
+assert(fortressBIndex >= 0 && fortressBIndex <= 2, "Case B Fortress + AA must rank in top 3");
+assert(marksmanBIndex < 0 || fortressBIndex < marksmanBIndex, "Case B Fortress + AA must outrank Marksman single");
+const fortressB = tacticalB[fortressBIndex];
+assert(fortressB.roleGapsBefore.includes("frontline") && fortressB.roleGapsBefore.includes("tank") && fortressB.roleGapsBefore.includes("anti_air"), "Case B dynamic role gaps incomplete");
+assert(!fortressB.roleGapsAfter.includes("frontline") && !fortressB.roleGapsAfter.includes("tank") && !fortressB.roleGapsAfter.includes("anti_air"), "Case B Fortress package did not close role gaps");
+assert(fortressB.roleCompression > 0 && fortressB.structuralSynergy > 0, "Case B compression/structure score missing");
+assert(fortressB.details.techNotes.some((line) => line.includes("Anti-Air Barrage") && line.includes("Phoenix") && line.includes("必要")), "Case B TECH NOTES requirement missing");
+
+const tacticalC = calculator.calculate(["Phoenix", "Typhoon"], ["Fortress", "Mustang"], { limit: 10 });
+assert.deepStrictEqual(tacticalC[0].package, [], "Case C covered tank/frontline/AA should avoid unnecessary pivot");
+assert(!tacticalC[0].techPackages.some((tech) => tech.id === "anti-air-barrage"), "Case C must not buy redundant Fortress AA");
+
+const tacticalD = calculator.calculate(["Phoenix"], ["Fortress"], { limit: 10 });
+const fortressDIndex = tacticalD.findIndex((result) => result.package[0] === "Fortress" && result.techPackages.some((tech) => tech.id === "anti-air-barrage"));
+assert(fortressDIndex >= 0 && fortressDIndex <= 2, "Case D existing Fortress + AA must be a top-3 investment axis");
+assert(tacticalD[fortressDIndex].existingUnitAdvantage > 0, "Case D existing-unit advantage missing");
+assert.strictEqual(tacticalD[fortressDIndex].totalCoreCount, 1, "Unit + Tech must remain one core type");
+
+const tacticalE = calculator.calculate(["Typhoon"], tacticalOwn, { limit: 10 });
+assert.deepStrictEqual(tacticalE[0].package, ["Scorpion"], "Case E Scorpion S counter must remain rank 1");
+assert.strictEqual(tacticalE[0].assignments[0].grade, "S", "Case E direct S grade lost");
+
+const fortressNoSupport = calculator.scorePackage(["Fortress"], ["Phoenix", "Typhoon"], []);
+assert(fortressNoSupport.supportBurden > fortressB.supportBurden, "Crawler/Arclight must reduce Fortress support burden");
+assert(fortressB.costPenalty > calculator.economyPenalty(["Fortress"]), "tactical Tech cost must participate in economy");
+for (const key of ["threatCoverage", "roleGapsBefore", "roleGapsAfter", "roleCompression", "techPackages", "supportBurden", "structuralSynergy"]) {
+  assert(Object.hasOwn(fortressB, key), `debug score field ${key} missing`);
+}
+
 // Warm browser-like execution and assert both average and worst sample stay below 100ms.
 calculator.calculate(enemiesD, own);
 const samples = [];
